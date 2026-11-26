@@ -5,7 +5,6 @@ import { BrandHeader } from '../components/BrandHeader'
 import { COLOR_BELTS } from '../lib/belt'
 import { computeTrinhDo } from '../lib/grade'
 import { incompleteStudent, initials, isoDateToVi, viToIso } from '../lib/format'
-import { nextMaDinhDanh, nextMaHV } from '../lib/studentCodes'
 import { useStore } from '../store'
 import type { BeltRank, Gender, Student, StudentStatus } from '../types'
 
@@ -46,15 +45,6 @@ export function StudentDetailPage() {
   )
   const [savedFlash, setSavedFlash] = useState(false)
 
-  const previewMaDinhDanh = useMemo(
-    () => form.maDinhDanh || nextMaDinhDanh(state.students, form.joinDate),
-    [form.maDinhDanh, form.joinDate, state.students],
-  )
-  const previewMaHV = useMemo(
-    () => form.maHV || nextMaHV(state.students),
-    [form.maHV, state.students],
-  )
-
   useEffect(() => {
     if (existing && !editing) setForm({ ...existing })
   }, [existing, editing])
@@ -71,7 +61,7 @@ export function StudentDetailPage() {
     )
   }
 
-  const student = editing ? form : existing!
+  const student = (editing ? form : existing) ?? form
   const missing = incompleteStudent(student)
 
   function patch<K extends keyof Student>(key: K, value: Student[K]) {
@@ -88,7 +78,13 @@ export function StudentDetailPage() {
     e.preventDefault()
     const gradeDisplay =
       form.gradeDisplay.trim() || computeTrinhDo(form.dob, form.gradeDisplay)
-    const next = { ...form, gradeDisplay, fullName: form.fullName.trim() }
+    const next = {
+      ...form,
+      gradeDisplay,
+      fullName: form.fullName.trim(),
+      maHV: form.maHV.trim(),
+      maDinhDanh: form.maDinhDanh.trim(),
+    }
     if (!next.fullName) {
       alert('Nhập họ và tên')
       return
@@ -233,19 +229,28 @@ export function StudentDetailPage() {
               DD/MM/YYYY.
             </p>
 
-            <div className="code-preview" aria-live="polite">
-              <div>
-                <span className="muted">Mã HV (tự sinh)</span>
-                <strong>{previewMaHV}</strong>
-              </div>
-              <div>
-                <span className="muted">Mã định danh (tự sinh)</span>
-                <strong>{previewMaDinhDanh}</strong>
-              </div>
-              <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-                An không cần gõ — hệ thống gán khi lưu. Mã định danh theo năm vào lớp.
-              </p>
-            </div>
+            <label>
+              Mã HV
+              <input
+                value={form.maHV}
+                placeholder="Mã liên đoàn cấp"
+                autoCapitalize="characters"
+                onChange={(e) => patch('maHV', e.target.value)}
+              />
+            </label>
+
+            <label>
+              Mã định danh
+              <input
+                value={form.maDinhDanh}
+                placeholder="Mã liên đoàn cấp"
+                autoCapitalize="characters"
+                onChange={(e) => patch('maDinhDanh', e.target.value)}
+              />
+            </label>
+            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+              Hai mã do liên đoàn cấp. Gõ đúng mã trên giấy tờ, app không tự điền.
+            </p>
 
             <label>
               Họ và tên *

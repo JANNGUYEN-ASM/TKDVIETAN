@@ -17,7 +17,6 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<StudentsPage />} />
-            <Route path="vo-sinh/moi" element={<StudentDetailPage />} />
             <Route path="vo-sinh/:id" element={<StudentDetailPage />} />
             <Route path="nhap-excel" element={<ImportPage />} />
             <Route path="diem-danh" element={<AttendancePage />} />

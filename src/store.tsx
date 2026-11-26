@@ -151,16 +151,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((s) => {
       const i = s.students.findIndex((x) => x.id === student.id)
       if (i < 0) {
-        const withCodes = assignCodesForNew(student, s.students)
-        return { ...s, students: [...s.students, withCodes] }
+        return { ...s, students: [...s.students, assignCodesForNew(student)] }
       }
       const next = [...s.students]
-      const prev = next[i]
-      next[i] = {
-        ...student,
-        maDinhDanh: student.maDinhDanh?.trim() || prev.maDinhDanh,
-        maHV: student.maHV?.trim() || prev.maHV,
-      }
+      next[i] = assignCodesForNew(student)
       return { ...s, students: next }
     })
   }, [])
@@ -193,7 +187,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             maHV: incoming.maHV?.trim() || existing.maHV,
           }
         } else {
-          merged.push(assignCodesForNew({ ...incoming, stt: merged.length + 1 }, merged))
+          merged.push(assignCodesForNew({ ...incoming, stt: merged.length + 1 }))
         }
       }
       return { ...s, students: ensureStudentCodes(merged) }

@@ -126,7 +126,7 @@ function rowToStudent(
   return {
     id: `${idPrefix}-${index}`,
     stt: Number(mapped.stt) || index + 1,
-    // Để trống → store/API tự gán VA-YYYY-#### / HV-####
+    // Mã do liên đoàn cấp. Ô trống thì để trống, không tự sinh.
     maDinhDanh: (mapped.maDinhDanh || '').trim(),
     maHV: (mapped.maHV || '').trim(),
     fullName: mapped.fullName,
