@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
+import { downloadStudentsExcel } from '../lib/exportExcel'
 import { incompleteStudent, initials } from '../lib/format'
 import { useStore } from '../store'
 import type { StudentStatus } from '../types'
@@ -50,6 +51,9 @@ export function StudentsPage() {
           <Link to="/nhap-excel" className="btn btn-ghost">
             Nhập Excel
           </Link>
+          <button type="button" className="btn btn-ghost" onClick={() => downloadStudentsExcel(state.students)}>
+            Tải Excel
+          </button>
           <Link to="/sao-luu" className="btn btn-ghost">
             Sao lưu
           </Link>

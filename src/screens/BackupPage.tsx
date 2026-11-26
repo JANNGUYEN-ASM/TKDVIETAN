@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BrandHeader } from '../components/BrandHeader'
 import { downloadBackup, parseBackup } from '../lib/backup'
+import { downloadStudentsExcel } from '../lib/exportExcel'
 import { useStore } from '../store'
 
 export function BackupPage() {
@@ -122,6 +123,13 @@ export function BackupPage() {
           </button>
           <button type="button" className="btn btn-ghost btn-block" onClick={onExport}>
             Tải file sao lưu (.json)
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => downloadStudentsExcel(state.students)}
+          >
+            Tải file Excel (.xlsx)
           </button>
         </div>
 

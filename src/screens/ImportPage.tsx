@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BrandHeader } from '../components/BrandHeader'
+import { downloadStudentsExcel } from '../lib/exportExcel'
 import { parseImportFile } from '../lib/importExcel'
 import { useStore } from '../store'
 import type { Student } from '../types'
 
 export function ImportPage() {
-  const { replaceStudents } = useStore()
+  const { state, replaceStudents } = useStore()
   const navigate = useNavigate()
   const [fileName, setFileName] = useState('')
   const [headers, setHeaders] = useState<string[]>([])
@@ -45,6 +46,13 @@ export function ImportPage() {
         </Link>
 
         <div className="card stack">
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={() => downloadStudentsExcel(state.students)}
+          >
+            Tải file Excel
+          </button>
           <label className="btn btn-ghost btn-block" style={{ cursor: 'pointer' }}>
             Chọn file Excel / CSV
             <input
