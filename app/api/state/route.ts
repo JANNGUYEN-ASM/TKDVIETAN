@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireIdentity } from '../../../cursor/identity'
+import { bookFor } from '../../../src/lib/bookAccess'
 import { createInitialState } from '../../../src/data/seed'
 import { sql } from '../../../src/lib/db'
 import { stripLegacyDemo } from '../../../src/lib/stripDemo'
@@ -52,10 +53,9 @@ function prepareState(raw: unknown): AppState {
 async function openBook(request: Request) {
   const identity = await requireIdentity(request)
   if (identity instanceof Response) return identity
-  return {
-    rowId: identity.stage === 'preview' ? 'preview' : 'default',
-    viewer: identity.email || identity.name || 'CLB',
-  }
+  const book = bookFor(identity)
+  if (!book) return json({ error: 'forbidden' }, 403)
+  return book
 }
 
 function json(body: unknown, status = 200) {
@@ -68,7 +68,7 @@ function json(body: unknown, status = 200) {
 export async function GET(request: Request) {
   const book = await openBook(request)
   if (book instanceof Response) return book
-  const { rowId, viewer } = book
+  const { rowId } = book
   const rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
   const row = rows[0]
   if (!row || !row.payload || Object.keys(row.payload as object).length === 0) {
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
        on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
       [rowId, JSON.stringify(initial)],
     )
-    return json({ state: initial, updatedAt: new Date().toISOString(), viewer })
+    return json({ state: initial, updatedAt: new Date().toISOString() })
   }
 
   const stored = normalizeState(row.payload)
@@ -94,14 +94,13 @@ export async function GET(request: Request) {
   return json({
     state,
     updatedAt: row.updated_at,
-    viewer,
   })
 }
 
 export async function PUT(request: Request) {
   const book = await openBook(request)
   if (book instanceof Response) return book
-  const { rowId, viewer } = book
+  const { rowId } = book
 
   const raw = await request.text()
   if (raw.length > MAX_BODY) return json({ error: 'too_large' }, 413)
@@ -120,5 +119,5 @@ export async function PUT(request: Request) {
     [rowId, JSON.stringify(state)],
   )
 
-  return json({ ok: true, updatedAt: new Date().toISOString(), viewer })
+  return json({ ok: true, updatedAt: new Date().toISOString() })
 }
