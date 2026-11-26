@@ -3,7 +3,7 @@ import { requireIdentity } from '../../../cursor/identity'
 import { bookFor } from '../../../src/lib/bookAccess'
 import { createInitialState } from '../../../src/data/seed'
 import { sql } from '../../../src/lib/db'
-import { stripLegacyDemo } from '../../../src/lib/stripDemo'
+import { keepClubState } from '../../../src/lib/stripDemo'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
 import type { AppState, AttendanceRecord, ClassSession, FeeRecord, Student } from '../../../src/types'
 
@@ -47,7 +47,13 @@ function normalizeState(raw: unknown): AppState {
 }
 
 function prepareState(raw: unknown): AppState {
-  return stripLegacyDemo(normalizeState(raw))
+  return keepClubState(normalizeState(raw))
+}
+
+function studentCount(payload: unknown): number {
+  if (!payload || typeof payload !== 'object') return 0
+  const students = (payload as { students?: unknown }).students
+  return Array.isArray(students) ? students.length : 0
 }
 
 async function openBook(request: Request) {
@@ -68,31 +74,35 @@ function json(body: unknown, status = 200) {
 export async function GET(request: Request) {
   const book = await openBook(request)
   if (book instanceof Response) return book
-  const { rowId } = book
-  const rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
-  const row = rows[0]
+  const { rowId, legacyId } = book
+  let rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
+  let row = rows[0]
+  if (!row || studentCount(row.payload) === 0) {
+    const legacyRows = await sql<Row>('select payload, updated_at from club_data where id = $1', [legacyId])
+    const legacy = legacyRows[0]
+    if (legacy && studentCount(legacy.payload) > 0) {
+      await sql(
+        `insert into club_data (id, payload, updated_at)
+         values ($1, $2::jsonb, now())
+         on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
+        [rowId, JSON.stringify(legacy.payload)],
+      )
+      row = { payload: legacy.payload, updated_at: legacy.updated_at }
+    }
+  }
   if (!row || !row.payload || Object.keys(row.payload as object).length === 0) {
     const initial = createInitialState()
     await sql(
       `insert into club_data (id, payload, updated_at)
        values ($1, $2::jsonb, now())
-       on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
+       on conflict (id) do nothing`,
       [rowId, JSON.stringify(initial)],
     )
     return json({ state: initial, updatedAt: new Date().toISOString() })
   }
 
-  const stored = normalizeState(row.payload)
-  const state = prepareState(row.payload)
-  if (JSON.stringify(stored) !== JSON.stringify(state)) {
-    await sql(
-      `update club_data set payload = $2::jsonb, updated_at = now() where id = $1`,
-      [rowId, JSON.stringify(state)],
-    )
-  }
-
   return json({
-    state,
+    state: prepareState(row.payload),
     updatedAt: row.updated_at,
   })
 }

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { CLASS_TIME, createInitialState, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
-import { stripLegacyDemo } from './lib/stripDemo'
+import { keepClubState } from './lib/stripDemo'
 import type {
   AppState,
   AttendanceRecord,
@@ -24,6 +24,36 @@ import type {
 } from './types'
 import { dayCodeFromIso } from './lib/format'
 import { assignCodesForNew, ensureStudentCodes } from './lib/studentCodes'
+
+function mergeById<T extends { id: string }>(preferred: T[], other: T[]): T[] {
+  const map = new Map<string, T>()
+  for (const item of other) {
+    if (item?.id) map.set(item.id, item)
+  }
+  for (const item of preferred) {
+    if (item?.id) map.set(item.id, item)
+  }
+  return [...map.values()]
+}
+
+function mergeClubState(local: AppState, remote: AppState): AppState {
+  const attendance = new Map<string, AttendanceRecord>()
+  for (const record of remote.attendance || []) {
+    attendance.set(`${record.sessionId}:${record.studentId}`, record)
+  }
+  for (const record of local.attendance || []) {
+    attendance.set(`${record.sessionId}:${record.studentId}`, record)
+  }
+  return {
+    ...remote,
+    ...local,
+    settings: { ...remote.settings, ...(local.settings || {}) },
+    students: mergeById(local.students || [], remote.students || []),
+    sessions: mergeById(local.sessions || [], remote.sessions || []),
+    fees: mergeById(local.fees || [], remote.fees || []),
+    attendance: [...attendance.values()],
+  }
+}
 
 function normalizeState(raw: AppState): AppState {
   const base = createInitialState()
@@ -71,7 +101,7 @@ function readStored(key: string): AppState | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as AppState
     if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.students)) return null
-    return stripLegacyDemo(normalizeState(parsed))
+    return keepClubState(normalizeState(parsed))
   } catch {
     return null
   }
@@ -98,9 +128,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         const data = (await res.json()) as { state?: AppState }
         if (!cancelled && Array.isArray(data.state?.students)) {
-          const next = stripLegacyDemo(normalizeState(data.state))
+          const next = keepClubState(normalizeState(data.state))
           setState((current) => {
-            const merged = next.students.length === 0 && current.students.length > 0 ? current : next
+            const merged = mergeClubState(current, next)
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
             return merged
           })
@@ -329,7 +359,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const replaceAllState = useCallback((next: AppState) => {
-    const normalized = stripLegacyDemo(normalizeState(next))
+    const normalized = keepClubState(normalizeState(next))
     setState(normalized)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
   }, [])
