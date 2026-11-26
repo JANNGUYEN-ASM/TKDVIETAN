@@ -1,43 +1,69 @@
 import { NextResponse } from 'next/server'
-import { requireIdentity } from '../../../cursor/identity'
+import { getIdentity } from '../../../cursor/identity'
 import { createInitialState } from '../../../src/data/seed'
 import { sql } from '../../../src/lib/db'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
-import type { AppState, Student } from '../../../src/types'
+import type { AppState, AttendanceRecord, ClassSession, FeeRecord, Student } from '../../../src/types'
 
 export const dynamic = 'force-dynamic'
 
+const MAX_BODY = 400_000
+
 type Row = { payload: AppState | Record<string, unknown>; updated_at: string }
+
+function take<T>(value: unknown, fallback: T[], max: number): T[] {
+  if (!Array.isArray(value)) return fallback
+  return value.slice(0, max) as T[]
+}
 
 function normalizeState(raw: unknown): AppState {
   const base = createInitialState()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
   const obj = raw as Partial<AppState>
-  if (!Array.isArray(obj.students) || obj.students.length === 0) {
-    // empty payload → seed sample so first open isn't blank
-    if (!obj.students) return base
-  }
-  const students = ensureStudentCodes((obj.students || base.students) as Student[])
+  const students = ensureStudentCodes(
+    take<Student>(obj.students, obj.students ? [] : base.students, 2000),
+  )
+  const settings = obj.settings
   return {
-    ...base,
-    ...obj,
-    settings: { ...base.settings, ...(obj.settings || {}) },
+    role: obj.role === 'hlv' ? 'hlv' : 'an',
+    settings: {
+      defaultFee:
+        typeof settings?.defaultFee === 'number' && Number.isFinite(settings.defaultFee)
+          ? settings.defaultFee
+          : base.settings.defaultFee,
+      defaultCourse:
+        typeof settings?.defaultCourse === 'string'
+          ? settings.defaultCourse.slice(0, 80)
+          : base.settings.defaultCourse,
+    },
     students,
-    sessions: (obj.sessions || base.sessions).map((s) => ({
+    sessions: take<ClassSession>(obj.sessions, base.sessions, 4000).map((s) => ({
       ...s,
       kind: s.kind || 'regular',
     })),
-    attendance: obj.attendance || base.attendance,
-    fees: obj.fees || base.fees,
-    role: obj.role === 'hlv' ? 'hlv' : 'an',
+    attendance: take<AttendanceRecord>(obj.attendance, base.attendance, 20000),
+    fees: take<FeeRecord>(obj.fees, base.fees, 8000),
   }
 }
 
-export async function GET(request: Request) {
-  const identity = await requireIdentity(request)
-  if (identity instanceof Response) return identity
+async function bookId(request: Request): Promise<{ rowId: string; viewer: string }> {
+  const identity = await getIdentity(request)
+  if (identity.verified && identity.stage === 'preview') {
+    return { rowId: 'preview', viewer: identity.email || identity.name || 'CLB' }
+  }
+  const viewer = identity.verified ? identity.email || identity.name || 'CLB' : 'CLB'
+  return { rowId: 'default', viewer }
+}
 
-  const rowId = identity.stage === 'preview' ? 'preview' : 'default'
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'cache-control': 'private, no-store' },
+  })
+}
+
+export async function GET(request: Request) {
+  const { rowId, viewer } = await bookId(request)
   const rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
   const row = rows[0]
   if (!row || !row.payload || Object.keys(row.payload as object).length === 0) {
@@ -48,34 +74,28 @@ export async function GET(request: Request) {
        on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
       [rowId, JSON.stringify(initial)],
     )
-    return NextResponse.json(
-      { state: initial, updatedAt: new Date().toISOString(), viewer: identity.email || identity.name },
-      { headers: { 'cache-control': 'private, no-store' } },
-    )
+    return json({ state: initial, updatedAt: new Date().toISOString(), viewer })
   }
 
-  return NextResponse.json(
-    {
-      state: normalizeState(row.payload),
-      updatedAt: row.updated_at,
-      viewer: identity.email || identity.name,
-    },
-    { headers: { 'cache-control': 'private, no-store' } },
-  )
+  return json({
+    state: normalizeState(row.payload),
+    updatedAt: row.updated_at,
+    viewer,
+  })
 }
 
 export async function PUT(request: Request) {
-  const identity = await requireIdentity(request)
-  if (identity instanceof Response) return identity
+  const raw = await request.text()
+  if (raw.length > MAX_BODY) return json({ error: 'too_large' }, 413)
 
   let body: unknown
   try {
-    body = await request.json()
+    body = JSON.parse(raw)
   } catch {
-    return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
+    return json({ error: 'invalid_json' }, 400)
   }
 
-  const rowId = identity.stage === 'preview' ? 'preview' : 'default'
+  const { rowId, viewer } = await bookId(request)
   const state = normalizeState((body as { state?: unknown })?.state ?? body)
   await sql(
     `insert into club_data (id, payload, updated_at)
@@ -84,8 +104,5 @@ export async function PUT(request: Request) {
     [rowId, JSON.stringify(state)],
   )
 
-  return NextResponse.json(
-    { ok: true, updatedAt: new Date().toISOString(), viewer: identity.email || identity.name },
-    { headers: { 'cache-control': 'private, no-store' } },
-  )
+  return json({ ok: true, updatedAt: new Date().toISOString(), viewer })
 }
