@@ -98,6 +98,11 @@ export function StudentsPage() {
           ))}
         </div>
 
+        <p className="roster-count">
+          {state.students.length} học viên
+          {list.length !== state.students.length ? ` · đang hiện ${list.length}` : ''}
+        </p>
+
         <div className="card">
           {list.length === 0 && (
             <p className="muted">
@@ -109,6 +114,7 @@ export function StudentsPage() {
             const miss = incompleteStudent(s)
             return (
               <Link key={s.id} to={`/vo-sinh/${s.id}`} className="student-item">
+                <span className="stt-col">{s.stt}</span>
                 <div className="avatar">{initials(s.fullName)}</div>
                 <div>
                   <h3>{s.fullName}</h3>
