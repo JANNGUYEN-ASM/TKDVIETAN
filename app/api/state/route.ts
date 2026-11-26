@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getIdentity } from '../../../cursor/identity'
+import { requireIdentity } from '../../../cursor/identity'
 import { createInitialState } from '../../../src/data/seed'
 import { sql } from '../../../src/lib/db'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
@@ -46,13 +46,13 @@ function normalizeState(raw: unknown): AppState {
   }
 }
 
-async function bookId(request: Request): Promise<{ rowId: string; viewer: string }> {
-  const identity = await getIdentity(request)
-  if (identity.verified && identity.stage === 'preview') {
-    return { rowId: 'preview', viewer: identity.email || identity.name || 'CLB' }
+async function openBook(request: Request) {
+  const identity = await requireIdentity(request)
+  if (identity instanceof Response) return identity
+  return {
+    rowId: identity.stage === 'preview' ? 'preview' : 'default',
+    viewer: identity.email || identity.name || 'CLB',
   }
-  const viewer = identity.verified ? identity.email || identity.name || 'CLB' : 'CLB'
-  return { rowId: 'default', viewer }
 }
 
 function json(body: unknown, status = 200) {
@@ -63,7 +63,9 @@ function json(body: unknown, status = 200) {
 }
 
 export async function GET(request: Request) {
-  const { rowId, viewer } = await bookId(request)
+  const book = await openBook(request)
+  if (book instanceof Response) return book
+  const { rowId, viewer } = book
   const rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
   const row = rows[0]
   if (!row || !row.payload || Object.keys(row.payload as object).length === 0) {
@@ -85,6 +87,10 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const book = await openBook(request)
+  if (book instanceof Response) return book
+  const { rowId, viewer } = book
+
   const raw = await request.text()
   if (raw.length > MAX_BODY) return json({ error: 'too_large' }, 413)
 
@@ -94,8 +100,6 @@ export async function PUT(request: Request) {
   } catch {
     return json({ error: 'invalid_json' }, 400)
   }
-
-  const { rowId, viewer } = await bookId(request)
   const state = normalizeState((body as { state?: unknown })?.state ?? body)
   await sql(
     `insert into club_data (id, payload, updated_at)
