@@ -41,7 +41,7 @@ export function BottomNav() {
 }
 
 export function DesktopSidebar() {
-  const { state, resetDemo } = useStore()
+  const { state } = useStore()
   const visible = links.filter((l) => !(l.anOnly && state.role === 'hlv'))
 
   return (
@@ -68,9 +68,6 @@ export function DesktopSidebar() {
         <NavLink to="/sao-luu" className="btn btn-primary btn-block" style={{ textAlign: 'center' }}>
           Sao lưu / chuyển máy
         </NavLink>
-        <button type="button" className="btn btn-ghost btn-block" onClick={resetDemo}>
-          Reset dữ liệu mẫu
-        </button>
       </div>
     </aside>
   )

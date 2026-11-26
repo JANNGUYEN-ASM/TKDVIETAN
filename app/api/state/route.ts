@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireIdentity } from '../../../cursor/identity'
 import { createInitialState } from '../../../src/data/seed'
 import { sql } from '../../../src/lib/db'
+import { stripLegacyDemo } from '../../../src/lib/stripDemo'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
 import type { AppState, AttendanceRecord, ClassSession, FeeRecord, Student } from '../../../src/types'
 
@@ -20,9 +21,7 @@ function normalizeState(raw: unknown): AppState {
   const base = createInitialState()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
   const obj = raw as Partial<AppState>
-  const students = ensureStudentCodes(
-    take<Student>(obj.students, obj.students ? [] : base.students, 2000),
-  )
+  const students = ensureStudentCodes(take<Student>(obj.students, [], 2000))
   const settings = obj.settings
   return {
     role: obj.role === 'hlv' ? 'hlv' : 'an',
@@ -37,13 +36,17 @@ function normalizeState(raw: unknown): AppState {
           : base.settings.defaultCourse,
     },
     students,
-    sessions: take<ClassSession>(obj.sessions, base.sessions, 4000).map((s) => ({
+    sessions: take<ClassSession>(obj.sessions, [], 4000).map((s) => ({
       ...s,
       kind: s.kind || 'regular',
     })),
-    attendance: take<AttendanceRecord>(obj.attendance, base.attendance, 20000),
-    fees: take<FeeRecord>(obj.fees, base.fees, 8000),
+    attendance: take<AttendanceRecord>(obj.attendance, [], 20000),
+    fees: take<FeeRecord>(obj.fees, [], 8000),
   }
+}
+
+function prepareState(raw: unknown): AppState {
+  return stripLegacyDemo(normalizeState(raw))
 }
 
 async function openBook(request: Request) {
@@ -79,8 +82,17 @@ export async function GET(request: Request) {
     return json({ state: initial, updatedAt: new Date().toISOString(), viewer })
   }
 
+  const stored = normalizeState(row.payload)
+  const state = prepareState(row.payload)
+  if (JSON.stringify(stored) !== JSON.stringify(state)) {
+    await sql(
+      `update club_data set payload = $2::jsonb, updated_at = now() where id = $1`,
+      [rowId, JSON.stringify(state)],
+    )
+  }
+
   return json({
-    state: normalizeState(row.payload),
+    state,
     updatedAt: row.updated_at,
     viewer,
   })
@@ -100,7 +112,7 @@ export async function PUT(request: Request) {
   } catch {
     return json({ error: 'invalid_json' }, 400)
   }
-  const state = normalizeState((body as { state?: unknown })?.state ?? body)
+  const state = prepareState((body as { state?: unknown })?.state ?? body)
   await sql(
     `insert into club_data (id, payload, updated_at)
      values ($1, $2::jsonb, now())

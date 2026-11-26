@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CLASS_TIME, createInitialState, STORAGE_KEY } from './data/seed'
+import { CLASS_TIME, createInitialState, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
+import { stripLegacyDemo } from './lib/stripDemo'
 import type {
   AppState,
   AttendanceRecord,
@@ -31,7 +32,7 @@ function normalizeState(raw: AppState): AppState {
     ...raw,
     settings: { ...base.settings, ...(raw.settings || {}) },
     sessions: normalizeSessions(raw.sessions || []),
-    students: ensureStudentCodes(raw.students || base.students),
+    students: ensureStudentCodes(raw.students || []),
   }
 }
 
@@ -53,7 +54,6 @@ type Store = {
   markFeePaid: (feeId: string) => void
   upsertFee: (fee: FeeRecord) => void
   replaceAllState: (next: AppState) => void
-  resetDemo: () => void
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -65,16 +65,20 @@ function normalizeSessions(sessions: ClassSession[]): ClassSession[] {
   }))
 }
 
-function loadState(): AppState {
+function readStored(key: string): AppState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return createInitialState()
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
     const parsed = JSON.parse(raw) as AppState
-    if (!parsed.students?.length) return createInitialState()
-    return normalizeState(parsed)
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.students)) return null
+    return stripLegacyDemo(normalizeState(parsed))
   } catch {
-    return createInitialState()
+    return null
   }
+}
+
+function loadState(): AppState {
+  return readStored(STORAGE_KEY) ?? readStored(LEGACY_STORAGE_KEY) ?? createInitialState()
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -93,10 +97,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return
         }
         const data = (await res.json()) as { state?: AppState }
-        if (!cancelled && data.state?.students) {
-          const next = normalizeState(data.state)
-          setState(next)
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        if (!cancelled && Array.isArray(data.state?.students)) {
+          const next = stripLegacyDemo(normalizeState(data.state))
+          setState((current) => {
+            const merged = next.students.length === 0 && current.students.length > 0 ? current : next
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+            return merged
+          })
           setSyncLabel('Đã đồng bộ server')
         }
       } catch {
@@ -322,15 +329,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const replaceAllState = useCallback((next: AppState) => {
-    const normalized = normalizeState(next)
+    const normalized = stripLegacyDemo(normalizeState(next))
     setState(normalized)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
-  }, [])
-
-  const resetDemo = useCallback(() => {
-    const fresh = createInitialState()
-    setState(fresh)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
   }, [])
 
   const value = useMemo(
@@ -352,7 +353,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markFeePaid,
       upsertFee,
       replaceAllState,
-      resetDemo,
     }),
     [
       state,
@@ -372,7 +372,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markFeePaid,
       upsertFee,
       replaceAllState,
-      resetDemo,
     ],
   )
 

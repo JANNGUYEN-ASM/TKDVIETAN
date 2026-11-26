@@ -258,7 +258,7 @@ export function StudentDetailPage() {
                 required
                 autoFocus={isNew}
                 value={form.fullName}
-                placeholder="VD: Lê Minh Quý"
+                placeholder="Họ và tên võ sinh"
                 onChange={(e) => patch('fullName', e.target.value)}
               />
             </label>
@@ -332,7 +332,7 @@ export function StudentDetailPage() {
                 type="tel"
                 inputMode="tel"
                 value={form.phone}
-                placeholder="0901 234 567"
+                placeholder="SĐT phụ huynh"
                 onChange={(e) => patch('phone', e.target.value)}
               />
             </label>
