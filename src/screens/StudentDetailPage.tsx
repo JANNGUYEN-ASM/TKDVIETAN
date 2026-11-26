@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
-import { COLOR_BELTS } from '../lib/belt'
+import { COLOR_BELTS, beltLabel } from '../lib/belt'
 import { computeTrinhDo } from '../lib/grade'
 import { incompleteStudent, initials, isoDateToVi, viToIso } from '../lib/format'
 import { useStore } from '../store'
@@ -303,7 +303,9 @@ export function StudentDetailPage() {
               Cấp bậc
               <select value={form.belt} onChange={(e) => patch('belt', e.target.value as BeltRank)}>
                 {COLOR_BELTS.map((b) => (
-                  <option key={b}>{b}</option>
+                  <option key={b} value={b}>
+                    {beltLabel(b)}
+                  </option>
                 ))}
               </select>
             </label>

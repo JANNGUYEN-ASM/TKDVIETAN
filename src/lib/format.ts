@@ -29,6 +29,14 @@ export function todayIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** Missing or unreadable dates sort after every real date. */
+export function dobSortValue(dob: string): number {
+  const iso = viToIso(dob)
+  if (!iso) return Number.POSITIVE_INFINITY
+  const time = Date.parse(`${iso}T12:00:00`)
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+}
+
 /** DD/MM/YYYY → YYYY-MM-DD for <input type="date"> */
 export function viToIso(vi: string): string {
   const m = vi.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)

@@ -5,6 +5,7 @@ export type Gender = 'Nam' | 'Nữ'
 export type StudentStatus = 'Đang học' | 'Nghỉ học'
 
 export type BeltRank =
+  | 'Cấp 10'
   | 'Nhập môn'
   | 'Cấp 9'
   | 'Cấp 8'
