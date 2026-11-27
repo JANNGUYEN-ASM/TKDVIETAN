@@ -148,10 +148,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         const data = (await res.json()) as { state?: AppState }
         if (!cancelled && Array.isArray(data.state?.students)) {
-          const next = keepClubState(normalizeState(data.state))
+          const remote = keepClubState(normalizeState(data.state))
           setState((current) => {
-            const merged = mergeClubState(current, next)
+            const merged = mergeClubState(current, remote)
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+            const remoteIds = new Set((remote.students || []).map((student) => student.id))
+            const phoneOnly = (current.students || []).some((student) => student?.id && !remoteIds.has(student.id))
+            if (phoneOnly) {
+              void fetch('/api/state', {
+                method: 'PUT',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ state: merged }),
+              })
+            }
             return merged
           })
           setSyncLabel('Đã đồng bộ server')

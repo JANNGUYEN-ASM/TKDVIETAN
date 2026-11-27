@@ -61,12 +61,6 @@ function prepareState(raw: unknown): AppState {
   return keepClubState(normalizeState(raw))
 }
 
-function studentCount(payload: unknown): number {
-  if (!payload || typeof payload !== 'object') return 0
-  const students = (payload as { students?: unknown }).students
-  return Array.isArray(students) ? students.length : 0
-}
-
 async function openBook(request: Request) {
   const identity = await requireIdentity(request)
   if (identity instanceof Response) return identity
@@ -85,22 +79,9 @@ function json(body: unknown, status = 200) {
 export async function GET(request: Request) {
   const book = await openBook(request)
   if (book instanceof Response) return book
-  const { rowId, legacyId } = book
-  let rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
-  let row = rows[0]
-  if (!row || studentCount(row.payload) === 0) {
-    const legacyRows = await sql<Row>('select payload, updated_at from club_data where id = $1', [legacyId])
-    const legacy = legacyRows[0]
-    if (legacy && studentCount(legacy.payload) > 0) {
-      await sql(
-        `insert into club_data (id, payload, updated_at)
-         values ($1, $2::jsonb, now())
-         on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
-        [rowId, JSON.stringify(legacy.payload)],
-      )
-      row = { payload: legacy.payload, updated_at: legacy.updated_at }
-    }
-  }
+  const { rowId } = book
+  const rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
+  const row = rows[0]
   if (!row || !row.payload || Object.keys(row.payload as object).length === 0) {
     const initial = createInitialState()
     await sql(
