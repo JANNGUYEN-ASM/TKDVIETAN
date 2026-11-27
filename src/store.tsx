@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CLASS_TIME, createInitialState, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
+import { CLASS_TIME, createInitialState, LEGACY_DEFAULT_FEE, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
+import { canonicalBelt } from './lib/belt'
+import { canonicalFee, migrateFeeAmount } from './lib/fees'
 import { keepClubState } from './lib/stripDemo'
 import type {
   AppState,
@@ -60,9 +62,26 @@ function normalizeState(raw: AppState): AppState {
   return {
     ...base,
     ...raw,
-    settings: { ...base.settings, ...(raw.settings || {}) },
+    settings: {
+      ...base.settings,
+      ...(raw.settings || {}),
+      defaultFee:
+        raw.settings?.defaultFee === LEGACY_DEFAULT_FEE
+          ? base.settings.defaultFee
+          : (raw.settings?.defaultFee ?? base.settings.defaultFee),
+    },
     sessions: normalizeSessions(raw.sessions || []),
-    students: ensureStudentCodes(raw.students || []),
+    students: ensureStudentCodes(raw.students || []).map((student) => ({
+      ...student,
+      belt: canonicalBelt(student.belt),
+    })),
+    fees: (raw.fees || []).map((fee) => {
+      const next = canonicalFee(fee)
+      return {
+        ...next,
+        amount: migrateFeeAmount(next.amount, next.mode, raw.settings?.defaultFee === LEGACY_DEFAULT_FEE),
+      }
+    }),
   }
 }
 
@@ -71,6 +90,7 @@ type Store = {
   syncLabel: string
   setRole: (role: Role) => void
   updateSettings: (patch: Partial<ClubSettings>) => void
+  setDefaultFee: (amount: number) => void
   upsertStudent: (student: Student) => void
   deleteStudent: (id: string) => void
   replaceStudents: (students: Student[], mode: 'merge' | 'replace') => void
@@ -182,6 +202,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateSettings = useCallback((patch: Partial<ClubSettings>) => {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
+  }, [])
+
+  const setDefaultFee = useCallback((amount: number) => {
+    const fee = Number.isFinite(amount) && amount >= 0 ? amount : 0
+    setState((s) => ({
+      ...s,
+      settings: { ...s.settings, defaultFee: fee },
+      fees: s.fees.map((item) =>
+        item.mode === 'tháng' || item.mode === 'khóa' ? { ...item, amount: fee } : item,
+      ),
+    }))
   }, [])
 
   const upsertStudent = useCallback((student: Student) => {
@@ -370,6 +401,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       syncLabel,
       setRole,
       updateSettings,
+      setDefaultFee,
       upsertStudent,
       deleteStudent,
       replaceStudents,
@@ -389,6 +421,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       syncLabel,
       setRole,
       updateSettings,
+      setDefaultFee,
       upsertStudent,
       deleteStudent,
       replaceStudents,

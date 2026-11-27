@@ -78,7 +78,7 @@ export function StudentsPage() {
             onClick={() => {
               const result = downloadWhiteBeltExcel(state.students)
               if (result.count === 0) {
-                window.alert('Chưa có võ sinh đai trắng (Cấp 10 hoặc Nhập môn).')
+                window.alert('Chưa có võ sinh đai trắng (Cấp 10).')
               }
             }}
           >
@@ -192,47 +192,6 @@ export function StudentsPage() {
               </Link>
             )
           })}
-        </div>
-
-        <div className="card table-wrap desktop-only">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>STT</th>
-                <th>Mã HV</th>
-                <th>Mã ĐD</th>
-                <th>Họ và tên</th>
-                <th>Ngày sinh</th>
-                <th>GT</th>
-                <th>Trình độ</th>
-                <th>Cấp bậc</th>
-                <th>KHÓA</th>
-                <th>Trạng thái</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((s, index) => (
-                <tr key={s.id}>
-                  <td>{sort === 'dob' ? index + 1 : s.stt}</td>
-                  <td>{s.maHV || '—'}</td>
-                  <td>{s.maDinhDanh || '—'}</td>
-                  <td>
-                    <Link to={`/vo-sinh/${s.id}`}>{s.fullName}</Link>
-                  </td>
-                  <td>{s.dob}</td>
-                  <td>{s.gender}</td>
-                  <td>{s.gradeDisplay}</td>
-                  <td>{s.belt}</td>
-                  <td>{s.course || '—'}</td>
-                  <td>{s.status}</td>
-                  <td>
-                    <Link to={`/vo-sinh/${s.id}`}>Điền / Sửa</Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </>

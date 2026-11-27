@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireIdentity } from '../../../cursor/identity'
 import { bookFor } from '../../../src/lib/bookAccess'
-import { createInitialState } from '../../../src/data/seed'
+import { createInitialState, LEGACY_DEFAULT_FEE } from '../../../src/data/seed'
+import { canonicalBelt } from '../../../src/lib/belt'
+import { canonicalFee, migrateFeeAmount } from '../../../src/lib/fees'
 import { sql } from '../../../src/lib/db'
 import { keepClubState } from '../../../src/lib/stripDemo'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
@@ -22,14 +24,20 @@ function normalizeState(raw: unknown): AppState {
   const base = createInitialState()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
   const obj = raw as Partial<AppState>
-  const students = ensureStudentCodes(take<Student>(obj.students, [], 2000))
+  const legacyFee = obj.settings?.defaultFee === LEGACY_DEFAULT_FEE
+  const students = ensureStudentCodes(take<Student>(obj.students, [], 2000)).map((student) => ({
+    ...student,
+    belt: canonicalBelt(student.belt),
+  }))
   const settings = obj.settings
   return {
     role: obj.role === 'hlv' ? 'hlv' : 'an',
     settings: {
       defaultFee:
         typeof settings?.defaultFee === 'number' && Number.isFinite(settings.defaultFee)
-          ? settings.defaultFee
+          ? legacyFee
+            ? base.settings.defaultFee
+            : settings.defaultFee
           : base.settings.defaultFee,
       defaultCourse:
         typeof settings?.defaultCourse === 'string'
@@ -42,7 +50,10 @@ function normalizeState(raw: unknown): AppState {
       kind: s.kind || 'regular',
     })),
     attendance: take<AttendanceRecord>(obj.attendance, [], 20000),
-    fees: take<FeeRecord>(obj.fees, [], 8000),
+    fees: take<FeeRecord>(obj.fees, [], 8000).map((fee) => {
+      const next = canonicalFee(fee)
+      return { ...next, amount: migrateFeeAmount(next.amount, next.mode, legacyFee) }
+    }),
   }
 }
 

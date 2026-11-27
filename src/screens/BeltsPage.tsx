@@ -42,7 +42,7 @@ export function BeltsPage() {
       <div className="main-scroll stack">
         <div className="banner banner-warn">Dữ liệu CLB — không phải chứng chỉ liên đoàn</div>
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Đai trắng (Cấp 10, Nhập môn) → Cấp 9…Cấp 1 → dưới 15: Đai đen đỏ (Poom) / từ 15: Đai đen + đẳng.
+          Đai trắng Cấp 10 (không vạch) → Cấp 9…Cấp 1 → dưới 15: Đai đen đỏ (Poom) / từ 15: Đai đen + đẳng.
         </p>
 
         <div className="card">

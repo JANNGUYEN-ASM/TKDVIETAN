@@ -6,7 +6,6 @@ export type StudentStatus = 'Đang học' | 'Nghỉ học'
 
 export type BeltRank =
   | 'Cấp 10'
-  | 'Nhập môn'
   | 'Cấp 9'
   | 'Cấp 8'
   | 'Cấp 7'
@@ -31,9 +30,13 @@ export type AttendanceStatus = 'Có mặt' | 'Vắng' | 'Có phép' | 'Trễ'
 
 export type CancelReason = 'Mưa' | 'Có việc' | 'Khác'
 
-export type FeeMode = 'tháng' | 'khóa'
+export type FeeMode = 'tháng' | 'khóa' | 'võ phục' | 'dụng cụ' | 'lệ phí thi' | 'lệ phí thi lên đẳng'
 
-export type FeeStatus = 'Phải thu' | 'Đã thu' | 'Miễn'
+export type FeeStatus = 'Chưa thu' | 'Đã thu' | 'Miễn'
+
+export const EXTRA_FEE_MODES = ['võ phục', 'dụng cụ', 'lệ phí thi', 'lệ phí thi lên đẳng'] as const
+
+export const TUITION_FEE_MODES = ['tháng', 'khóa'] as const
 
 export type Student = {
   id: string

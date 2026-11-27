@@ -20,7 +20,7 @@ export function ReportPage() {
     }
     const rate = totalMarks === 0 ? 0 : Math.round((presentMarks / totalMarks) * 100)
 
-    const debtFees = state.fees.filter((f) => f.status === 'Phải thu')
+    const debtFees = state.fees.filter((f) => f.status === 'Chưa thu')
     const debt = debtFees.reduce((sum, f) => sum + f.amount, 0)
 
     const cancelled = state.sessions.filter((s) => s.kind === 'cancelled')

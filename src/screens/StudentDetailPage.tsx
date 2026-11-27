@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
 import { COLOR_BELTS, beltLabel } from '../lib/belt'
-import { computeTrinhDo } from '../lib/grade'
+import { ADULT_GRADE_OPTIONS, computeTrinhDo, isAdultGrade, needsAdultGradeChoice } from '../lib/grade'
 import { incompleteStudent, initials, isoDateToVi, viToIso } from '../lib/format'
 import { useStore } from '../store'
 import type { BeltRank, Gender, Student, StudentStatus } from '../types'
@@ -18,7 +18,7 @@ function emptyStudent(stt: number, defaultCourse: string): Student {
     dob: '',
     gender: 'Nam',
     gradeDisplay: '',
-    belt: 'Nhập môn',
+    belt: 'Cấp 10',
     joinDate: '',
     note: '',
     course: defaultCourse,
@@ -67,8 +67,13 @@ export function StudentDetailPage() {
   function patch<K extends keyof Student>(key: K, value: Student[K]) {
     setForm((f) => {
       const next = { ...f, [key]: value }
-      if (key === 'dob' && !f.gradeDisplay.trim()) {
-        next.gradeDisplay = computeTrinhDo(String(value), '')
+      if (key === 'dob') {
+        const dob = String(value)
+        if (needsAdultGradeChoice(dob)) {
+          if (!isAdultGrade(f.gradeDisplay)) next.gradeDisplay = ''
+        } else if (!f.gradeDisplay.trim() || isAdultGrade(f.gradeDisplay)) {
+          next.gradeDisplay = computeTrinhDo(dob, '')
+        }
       }
       return next
     })
@@ -281,22 +286,34 @@ export function StudentDetailPage() {
             </label>
 
             <label>
-              Trình độ (Lớp N / Đi làm)
-              <div className="row" style={{ gap: 8 }}>
-                <input
-                  style={{ flex: 1 }}
-                  value={form.gradeDisplay}
-                  placeholder="VD: Lớp 7 — hoặc để trống tự tính"
+              Trình độ
+              {needsAdultGradeChoice(form.dob) ? (
+                <select
+                  value={isAdultGrade(form.gradeDisplay) ? form.gradeDisplay : ''}
                   onChange={(e) => patch('gradeDisplay', e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => patch('gradeDisplay', computeTrinhDo(form.dob, ''))}
                 >
-                  Tự tính
-                </button>
-              </div>
+                  <option value="">Chọn</option>
+                  {ADULT_GRADE_OPTIONS.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="row" style={{ gap: 8 }}>
+                  <input
+                    style={{ flex: 1 }}
+                    value={form.gradeDisplay}
+                    placeholder="Lớp 1 từ 6 tuổi, hoặc bấm Tự tính"
+                    onChange={(e) => patch('gradeDisplay', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => patch('gradeDisplay', computeTrinhDo(form.dob, ''))}
+                  >
+                    Tự tính
+                  </button>
+                </div>
+              )}
             </label>
 
             <label>
