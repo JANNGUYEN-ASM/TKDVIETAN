@@ -2,11 +2,7 @@ import type { VerifiedIdentity } from '../../cursor/identity'
 
 const SUB_PATTERN = /^[\w:.-]{1,120}$/
 
-/**
- * The club book belongs to one signed-in person.
- * Another Cursor account cannot read or replace it.
- * A public link has no signed-in book; those devices share a database only with the club sync code.
- */
+/** One signed-in person, one book. A public visitor or an API key gets no book. */
 export function bookFor(identity: VerifiedIdentity): { rowId: string } | null {
   if (identity.kind !== 'person') return null
   if (identity.claims.app_visibility === 'public') return null

@@ -8,8 +8,7 @@ import { sql } from '../../../src/lib/db'
 import { mergeClubState, removedIds, revisionOf } from '../../../src/lib/mergeState'
 import { keepClubState } from '../../../src/lib/stripDemo'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
-import { clubRowId } from '../../../src/lib/syncBook'
-import { SYNC_HEADER } from '../../../src/lib/syncCode'
+import { tooMany } from '../../../src/lib/rateLimit'
 import type { AppState, AttendanceRecord, ClassSession, FeeRecord, Student } from '../../../src/types'
 
 export const dynamic = 'force-dynamic'
@@ -72,23 +71,25 @@ function prepareState(raw: unknown): AppState {
   return keepClubState(normalizeState(raw))
 }
 
-async function openBook(request: Request) {
-  const identity = await getIdentity(request)
-  if (identity.verified) {
-    const book = bookFor(identity)
-    if (book) return book
-  }
-  const rowId = clubRowId(request.headers.get(SYNC_HEADER) || '')
-  if (!rowId) return json({ error: 'unauthorized' }, 401)
-  return { rowId }
+function callerAddress(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || ''
+  return forwarded.slice(0, 80) || 'unknown'
 }
 
-async function clubHasRoom(rowId: string): Promise<boolean> {
-  if (!rowId.startsWith('club:')) return true
-  const existing = await sql<{ id: string }>('select id from club_data where id = $1', [rowId])
-  if (existing.length > 0) return true
-  const counts = await sql<{ n: number }>('select count(*)::int as n from club_data where id like $1', ['club:%'])
-  return Number(counts[0]?.n ?? 0) < 20
+async function openBook(request: Request) {
+  const address = callerAddress(request)
+  const identity = await getIdentity(request)
+  if (!identity.verified || identity.kind !== 'person') {
+    if (tooMany(`anon:${address}`, 20, 60_000)) return json({ error: 'too_many' }, 429)
+    return json({ error: 'unauthorized' }, 401)
+  }
+  const book = bookFor(identity)
+  if (!book) {
+    if (tooMany(`anon:${address}`, 20, 60_000)) return json({ error: 'too_many' }, 429)
+    return json({ error: 'unauthorized' }, 401)
+  }
+  if (tooMany(`user:${identity.sub}`, 180, 60_000)) return json({ error: 'too_many' }, 429)
+  return book
 }
 
 function json(body: unknown, status = 200) {
@@ -128,7 +129,6 @@ export async function PUT(request: Request) {
   } catch {
     return json({ error: 'invalid_json' }, 400)
   }
-  if (!(await clubHasRoom(rowId))) return json({ error: 'full' }, 429)
   const payload = body as { state?: unknown; replace?: unknown }
   const incoming = prepareState(payload.state ?? body)
   const replace = payload.replace === true

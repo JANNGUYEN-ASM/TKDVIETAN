@@ -14,7 +14,6 @@ import { ageYearsFromDob } from './lib/grade'
 import { canonicalFee, migrateFeeAmount } from './lib/fees'
 import { mergeClubState, removedIds, revisionOf } from './lib/mergeState'
 import { keepClubState } from './lib/stripDemo'
-import { createSyncCode, normalizeSyncCode, SYNC_CODE_KEY, SYNC_HEADER } from './lib/syncCode'
 import type {
   AppState,
   AttendanceRecord,
@@ -64,10 +63,6 @@ function normalizeState(raw: AppState): AppState {
   }
 }
 
-function clubHeaders(code: string): HeadersInit {
-  return { 'content-type': 'application/json', [SYNC_HEADER]: code }
-}
-
 type Store = {
   state: AppState
   syncLabel: string
@@ -89,9 +84,6 @@ type Store = {
   upsertFee: (fee: FeeRecord) => void
   replaceAllState: (next: AppState) => void
   clearAllData: () => void
-  syncCode: string
-  createClubSync: () => Promise<string>
-  joinClubSync: (raw: string) => Promise<string>
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -123,45 +115,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => loadState())
   const [syncLabel, setSyncLabel] = useState('Đang kết nối…')
   const [hydrated, setHydrated] = useState(false)
-  const [syncCode, setSyncCode] = useState('')
-  const syncCodeRef = useRef('')
   const skipNextPush = useRef(true)
   const forceReplace = useRef(false)
-
-  function rememberCode(code: string) {
-    syncCodeRef.current = code
-    setSyncCode(code)
-    try {
-      localStorage.setItem(SYNC_CODE_KEY, code)
-    } catch {
-      /* keep the code in memory for this visit */
-    }
-  }
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const saved = normalizeSyncCode(localStorage.getItem(SYNC_CODE_KEY) || '') || ''
-      if (saved) rememberCode(saved)
-      const headers: HeadersInit = saved ? { [SYNC_HEADER]: saved } : {}
       try {
-        const res = await fetch('/api/state', { cache: 'no-store', headers })
+        localStorage.removeItem('viet-an-sync-code')
+      } catch {
+        /* an old shared code must not stay on this device */
+      }
+      try {
+        const res = await fetch('/api/state', { cache: 'no-store' })
         if (cancelled) return
         if (res.status === 401) {
-          setSyncLabel('Chưa đồng bộ')
+          setSyncLabel('Chưa đăng nhập')
           return
         }
         if (res.status === 404) {
           const put = await fetch('/api/state', {
             method: 'PUT',
-            headers: saved ? clubHeaders(saved) : { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ state }),
           })
-          if (!cancelled) setSyncLabel(put.ok ? 'Đã đẩy dữ liệu lên database' : 'Chưa lưu được database')
+          if (!cancelled) setSyncLabel(put.ok ? 'Đã lưu database' : 'Chưa lưu được database')
           return
         }
         if (!res.ok) {
-          setSyncLabel('Dùng dữ liệu máy (API chưa sẵn sàng)')
+          setSyncLabel('Dữ liệu trên máy')
           return
         }
         const data = (await res.json()) as { state?: AppState }
@@ -174,10 +156,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const remoteRemoved = new Set(remote.removedStudentIds || [])
           const phoneOnly = (current.students || []).some((student) => student?.id && !remoteIds.has(student.id))
           const localDelete = (current.removedStudentIds || []).some((id) => !remoteRemoved.has(id))
-          if ((phoneOnly || localDelete) && saved) {
+          if (phoneOnly || localDelete) {
             void fetch('/api/state', {
               method: 'PUT',
-              headers: clubHeaders(saved),
+              headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ state: merged }),
             })
           }
@@ -185,7 +167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })
         setSyncLabel('Đã đồng bộ database')
       } catch {
-        if (!cancelled) setSyncLabel('Dùng dữ liệu máy (offline)')
+        if (!cancelled) setSyncLabel('Dữ liệu trên máy')
       } finally {
         if (!cancelled) {
           skipNextPush.current = true
@@ -206,17 +188,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return
     }
     const t = window.setTimeout(async () => {
-      const code = syncCodeRef.current
       const replace = forceReplace.current
       forceReplace.current = false
       try {
         const res = await fetch('/api/state', {
           method: 'PUT',
-          headers: code ? clubHeaders(code) : { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ state, replace }),
         })
         if (res.status === 401) {
-          setSyncLabel('Chưa đồng bộ')
+          setSyncLabel('Chưa đăng nhập')
           return
         }
         if (res.status === 409) {
@@ -472,11 +453,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   async function writeWholeBook(next: AppState) {
     const normalized = keepClubState(normalizeState(next))
-    const code = syncCodeRef.current
     try {
       const res = await fetch('/api/state', {
         method: 'PUT',
-        headers: code ? clubHeaders(code) : { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ state: normalized, replace: true }),
       })
       if (res.ok) {
@@ -511,50 +491,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const createClubSync = useCallback(async () => {
-    const code = createSyncCode()
-    rememberCode(code)
-    try {
-      const res = await fetch('/api/state', {
-        method: 'PUT',
-        headers: clubHeaders(code),
-        body: JSON.stringify({ state }),
-      })
-      if (!res.ok) {
-        setSyncLabel('Chưa lưu được database')
-        return ''
-      }
-      setSyncLabel('Đã lưu database')
-      return code
-    } catch {
-      setSyncLabel('Chưa lưu được database')
-      return ''
-    }
-  }, [state])
-
-  const joinClubSync = useCallback(async (raw: string) => {
-    const code = normalizeSyncCode(raw)
-    if (!code) return 'Mã gồm 12 ký tự, dạng ABCD-EFGH-JKLM'
-    try {
-      const res = await fetch('/api/state', { cache: 'no-store', headers: { [SYNC_HEADER]: code } })
-      if (res.status === 404) return 'Không thấy dữ liệu với mã này. Kiểm tra lại mã trên điện thoại.'
-      if (!res.ok) return 'Không đồng bộ được. Thử lại.'
-      const data = (await res.json()) as { state?: AppState }
-      if (!Array.isArray(data.state?.students)) return 'Không đồng bộ được. Thử lại.'
-      const remote = keepClubState(normalizeState(data.state))
-      rememberCode(code)
-      setState((current) => {
-        const merged = mergeClubState(current, remote)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
-        return merged
-      })
-      setSyncLabel('Đã lấy dữ liệu từ database')
-      return ''
-    } catch {
-      return 'Không đồng bộ được. Thử lại.'
-    }
-  }, [])
-
   const value = useMemo(
     () => ({
       state,
@@ -577,16 +513,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertFee,
       replaceAllState,
       clearAllData,
-      syncCode,
-      createClubSync,
-      joinClubSync,
     }),
     [
       state,
       syncLabel,
-      syncCode,
-      createClubSync,
-      joinClubSync,
       setRole,
       updateSettings,
       setDefaultFee,

@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
-import { SyncCard } from '../components/SyncCard'
 import { COLOR_BELTS, beltLabel, beltSortValue, isWhiteBelt } from '../lib/belt'
 import { downloadStudentsExcel, downloadWhiteBeltExcel } from '../lib/exportExcel'
 import { dobSortValue, incompleteStudent, initials } from '../lib/format'
@@ -95,8 +94,6 @@ export function StudentsPage() {
             Sao lưu
           </Link>
         </div>
-
-        <SyncCard />
 
         {missingCount > 0 && (
           <button
