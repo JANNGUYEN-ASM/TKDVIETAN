@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { BrandHeader } from '../components/BrandHeader'
+import { applyRosterQuery, emptyRosterQuery, RosterFilters, type RosterQuery } from '../components/RosterFilters'
 import { SIBLING_MONTH_FEE } from '../data/seed'
 import { formatMoney, quarterLabel } from '../lib/format'
 import { useStore } from '../store'
@@ -14,7 +15,7 @@ export function FeesPage() {
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
   const [openStudentId, setOpenStudentId] = useState<string | null>(null)
   const [showSetup, setShowSetup] = useState(false)
-  const [feeQuery, setFeeQuery] = useState('')
+  const [query, setQuery] = useState<RosterQuery>(emptyRosterQuery(true))
 
   if (state.role === 'hlv') {
     return <Navigate to="/bao-cao" replace />
@@ -27,31 +28,26 @@ export function FeesPage() {
   const rows = useMemo(() => {
     const fees = state.fees.filter((f) => f.mode === mode && f.period === period)
     const byStudent = new Map(fees.map((f) => [f.studentId, f]))
-    return state.students
-      .filter((s) => s.status === 'Đang học')
-      .slice()
-      .sort((a, b) => a.stt - b.stt)
-      .map((s) => {
-        let fee = byStudent.get(s.id)
-        if (!fee) {
-          fee = {
-            id: `auto-${mode}-${period}-${s.id}`,
-            studentId: s.id,
-            mode,
-            period,
-            amount: defaultFee,
-            status: 'Chưa thu',
-          }
-        }
-        return { student: s, fee }
-      })
-  }, [state.students, state.fees, mode, period, defaultFee])
+    return applyRosterQuery(state.students, query).map((student) => {
+      const fee = byStudent.get(student.id) ?? {
+        id: `auto-${mode}-${period}-${student.id}`,
+        studentId: student.id,
+        mode,
+        period,
+        amount: defaultFee,
+        status: 'Chưa thu' as const,
+      }
+      return { student, fee }
+    })
+  }, [state.students, state.fees, mode, period, defaultFee, query])
 
-  const query = feeQuery.trim().toLowerCase()
-  const visibleRows = query
-    ? rows.filter((row) => row.student.fullName.toLowerCase().includes(query))
-    : rows
-  const selected = rows.find((row) => row.student.id === openStudentId) ?? null
+  const selectedStudent = state.students.find((student) => student.id === openStudentId) ?? null
+  const selected = selectedStudent
+    ? (rows.find((row) => row.student.id === selectedStudent.id) ?? {
+        student: selectedStudent,
+        fee: feeForStudent(selectedStudent, state.fees, mode, period, defaultFee),
+      })
+    : null
 
   const activeIds = new Set(rows.map((row) => row.student.id))
   const totals = [
@@ -171,14 +167,9 @@ export function FeesPage() {
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="search" aria-label="Kỳ học phí" />
           )}
           {mode === 'quý' && <span className="chip chip-outline active">{quarterLabel(`${month}-01`)} · {formatMoney(defaultFee)}</span>}
-          <input
-            className="search"
-            style={{ flex: 1, minWidth: 160 }}
-            placeholder="Tìm tên võ sinh"
-            value={feeQuery}
-            onChange={(e) => setFeeQuery(e.target.value)}
-          />
         </div>}
+
+        {!selected && <RosterFilters students={state.students} query={query} onChange={setQuery} />}
 
         {!selected && <div className="metrics">
           <div className="metric">
@@ -235,8 +226,8 @@ export function FeesPage() {
           />
         ) : (
           <div className="card">
-            {visibleRows.length === 0 && <p className="muted">Không có võ sinh đang học.</p>}
-            {visibleRows.map(({ student, fee }) => (
+            {rows.length === 0 && <p className="muted">Không có võ sinh trong bộ lọc này.</p>}
+            {rows.map(({ student, fee }) => (
               <button
                 key={student.id}
                 type="button"
@@ -339,6 +330,25 @@ function StudentFeeDetail({
         />
       ))}
     </div>
+  )
+}
+
+function feeForStudent(
+  student: Student,
+  fees: FeeRecord[],
+  mode: FeeRecord['mode'],
+  period: string,
+  amount: number,
+): FeeRecord {
+  return (
+    fees.find((fee) => fee.studentId === student.id && fee.mode === mode && fee.period === period) ?? {
+      id: `auto-${mode}-${period}-${student.id}`,
+      studentId: student.id,
+      mode,
+      period,
+      amount,
+      status: 'Chưa thu',
+    }
   )
 }
 

@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useStore } from '../store'
 
 const links = [
-  { to: '/', label: 'Võ sinh', end: true },
+  { to: '/', label: 'Danh sách', end: true },
   { to: '/diem-danh', label: 'Điểm danh' },
   { to: '/hoc-phi', label: 'Học phí', anOnly: true },
   { to: '/cap-dai', label: 'Cấp đai' },
@@ -75,7 +75,7 @@ export function DesktopSidebar() {
 function icon(to: string) {
   switch (to) {
     case '/':
-      return 'VS'
+      return 'DS'
     case '/diem-danh':
       return 'DD'
     case '/hoc-phi':

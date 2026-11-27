@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
+import { applyRosterQuery, emptyRosterQuery, RosterFilters, type RosterQuery } from '../components/RosterFilters'
 import { nextBelt } from '../lib/belt'
 import { ageYearsFromDob } from '../lib/grade'
 import { useStore } from '../store'
@@ -9,12 +10,10 @@ import type { AttendanceStatus } from '../types'
 export function BeltsPage() {
   const { state, promoteBelts } = useStore()
   const [picked, setPicked] = useState<string[]>([])
+  const [query, setQuery] = useState<RosterQuery>(emptyRosterQuery(true))
 
   const rows = useMemo(() => {
-    return state.students
-      .filter((s) => s.status === 'Đang học')
-      .slice()
-      .sort((a, b) => a.stt - b.stt)
+    return applyRosterQuery(state.students, query)
       .map((s) => {
         const age = ageYearsFromDob(s.dob)
         const marks = state.attendance.filter((a) => a.studentId === s.id)
@@ -25,9 +24,12 @@ export function BeltsPage() {
           attendance: countMarks(marks.map((mark) => mark.status)),
         }
       })
-  }, [state.students, state.attendance])
+  }, [state.students, state.attendance, query])
 
-  const ready = rows.filter((row) => row.age != null && row.age >= 6 && row.toBelt !== row.student.belt)
+  const ready = rows.filter(
+    (row) => row.student.status === 'Đang học' && row.age != null && row.age >= 6 && row.toBelt !== row.student.belt,
+  )
+  const listed = rows.filter((row) => row.age != null && row.age >= 6)
   const tooYoung = rows.filter((row) => row.age != null && row.age < 6)
   const missingAge = rows.filter((row) => row.age == null)
   const pickedReady = ready.filter((row) => picked.includes(row.student.id))
@@ -52,6 +54,7 @@ export function BeltsPage() {
     <>
       <BrandHeader subtitle="Cấp đai" />
       <div className="main-scroll stack">
+        <RosterFilters students={state.students} query={query} onChange={setQuery} />
         <div className="card">
           <div className="row between" style={{ gap: 8, alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>Sau kỳ thi</h3>
@@ -68,8 +71,9 @@ export function BeltsPage() {
               {pickedReady.length === ready.length && ready.length > 0 ? 'Bỏ chọn' : 'Chọn tất cả'}
             </button>
           </div>
-          {ready.length === 0 && <p className="muted">Không có võ sinh để thăng cấp.</p>}
-          {ready.map((row) => {
+          {listed.length === 0 && <p className="muted">Không có võ sinh trong bộ lọc này.</p>}
+          {listed.map((row) => {
+            const canPromote = ready.some((item) => item.student.id === row.student.id)
             const on = picked.includes(row.student.id)
             const marks = row.attendance
             return (
@@ -79,13 +83,15 @@ export function BeltsPage() {
                 style={{ padding: '12px 0', borderBottom: '1px solid var(--line)', alignItems: 'flex-start', gap: 8 }}
               >
                 <span className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    aria-label={`Chọn ${row.student.fullName}`}
-                    onChange={() => toggle(row.student.id)}
-                    style={{ marginTop: 6 }}
-                  />
+                  {canPromote && (
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      aria-label={`Chọn ${row.student.fullName}`}
+                      onChange={() => toggle(row.student.id)}
+                      style={{ marginTop: 6 }}
+                    />
+                  )}
                   <BeltBadge belt={row.student.belt} />
                   <span>
                     <strong>
