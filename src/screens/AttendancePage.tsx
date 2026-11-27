@@ -1,12 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BrandHeader } from '../components/BrandHeader'
 import { CLASS_TIME } from '../data/seed'
-import { dayCodeFromIso, isoToVi, sessionDayLabel, todayIso } from '../lib/format'
+import {
+  WEEKDAY_CODES,
+  addDays,
+  dayCodeFromIso,
+  eachDay,
+  endOfMonth,
+  isoToVi,
+  quarterInfo,
+  quarterLabel,
+  sessionDayLabel,
+  shiftPeriod,
+  startOfMonth,
+  startOfWeek,
+  todayIso,
+} from '../lib/format'
 import { useStore } from '../store'
-import type { AttendanceStatus, CancelReason, SessionDay } from '../types'
+import type { AttendanceStatus, CancelReason, ClassSession, SessionDay } from '../types'
 
 const STATUSES: AttendanceStatus[] = ['Có mặt', 'Vắng', 'Có phép', 'Trễ']
 const CANCEL_REASONS: CancelReason[] = ['Mưa', 'Có việc', 'Khác']
+type Period = 'week' | 'month' | 'quarter'
 
 export function AttendancePage() {
   const {
@@ -19,10 +34,8 @@ export function AttendancePage() {
     saveAttendanceBulk,
   } = useStore()
 
-  const [date, setDate] = useState(() => {
-    const t = todayIso()
-    return dayCodeFromIso(t) ? t : '2025-11-25'
-  })
+  const [date, setDate] = useState(() => todayIso())
+  const [period, setPeriod] = useState<Period>('week')
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState<CancelReason>('Mưa')
   const [makeupDate, setMakeupDate] = useState('')
@@ -154,15 +167,29 @@ export function AttendancePage() {
                 {CLASS_TIME}
               </p>
             </div>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value)
-                setPickedSessionId(null)
-              }}
-              style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 10px' }}
-            />
+            <div className="row" style={{ gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ padding: '8px 10px' }}
+                onClick={() => {
+                  setDate(todayIso())
+                  setPickedSessionId(null)
+                }}
+              >
+                Hôm nay
+              </button>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  if (!e.target.value) return
+                  setDate(e.target.value)
+                  setPickedSessionId(null)
+                }}
+                style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 10px' }}
+              />
+            </div>
           </div>
 
           {sessionsOnDate.length > 1 && (
@@ -180,20 +207,24 @@ export function AttendancePage() {
             </div>
           )}
 
-          {!dayCodeFromIso(date) && !isMakeup && (
-            <div className="banner banner-warn">
-              Ngày này không phải T3/T5/CN — dùng được cho tập bù hoặc buổi phát sinh.
-            </div>
-          )}
+          {isMakeup && <span className="chip chip-outline active">Bù</span>}
 
-          <div className="filters">
-            {(['T3', 'T5', 'CN'] as const).map((d) => (
-              <span key={d} className={`chip chip-outline${dayCode === d ? ' active' : ''}`}>
-                {d}
-              </span>
-            ))}
-            {isMakeup && <span className="chip chip-outline active">Bù</span>}
-          </div>
+          <PeriodCards
+            date={date}
+            period={period}
+            today={todayIso()}
+            sessions={state.sessions}
+            onPeriod={setPeriod}
+            onShift={(direction) => {
+              const next = shiftPeriod(date, period, direction)
+              setDate(next)
+              setPickedSessionId(null)
+            }}
+            onPick={(iso) => {
+              setDate(iso)
+              setPickedSessionId(null)
+            }}
+          />
 
           {isCancelled && (
             <div className="banner banner-warn">
@@ -371,6 +402,133 @@ export function AttendancePage() {
       </div>
     </>
   )
+}
+
+function PeriodCards({
+  date,
+  period,
+  today,
+  sessions,
+  onPeriod,
+  onShift,
+  onPick,
+}: {
+  date: string
+  period: Period
+  today: string
+  sessions: ClassSession[]
+  onPeriod: (period: Period) => void
+  onShift: (direction: -1 | 1) => void
+  onPick: (iso: string) => void
+}) {
+  const groups = periodGroups(date, period)
+  const title =
+    period === 'week'
+      ? `Tuần ${isoToVi(groups[0].days[0])}–${isoToVi(groups[0].days[groups[0].days.length - 1])}`
+      : period === 'month'
+        ? `Tháng ${date.slice(5, 7)}/${date.slice(0, 4)}`
+        : quarterLabel(date)
+
+  return (
+    <div className="stack">
+      <div className="seg seg-3">
+        {(
+          [
+            ['week', 'Tuần'],
+            ['month', 'Tháng'],
+            ['quarter', 'Quý'],
+          ] as const
+        ).map(([key, label]) => (
+          <button key={key} type="button" className={period === key ? 'active' : ''} onClick={() => onPeriod(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="row between">
+        <button type="button" className="btn btn-ghost" style={{ padding: '8px 12px' }} onClick={() => onShift(-1)}>
+          Trước
+        </button>
+        <strong style={{ textAlign: 'center' }}>{title}</strong>
+        <button type="button" className="btn btn-ghost" style={{ padding: '8px 12px' }} onClick={() => onShift(1)}>
+          Sau
+        </button>
+      </div>
+      {groups.map((group) => (
+        <div key={group.key} className="stack">
+          {period === 'quarter' && <h3 style={{ margin: 0 }}>{group.label}</h3>}
+          <div className="day-grid" aria-hidden>
+            {WEEKDAY_CODES.map((code) => (
+              <div key={code} className="day-head">
+                {code}
+              </div>
+            ))}
+          </div>
+          <div className="day-grid">
+            {group.blanks.map((blank) => (
+              <span key={blank} />
+            ))}
+            {group.days.map((iso) => {
+              const code = dayCodeFromIso(iso)
+              const saved = sessions.find((session) => session.date === iso && session.kind !== 'makeup')
+              const className = [
+                'day-card',
+                iso === date ? 'active' : '',
+                iso === today ? 'today' : '',
+                saved?.kind === 'cancelled' ? 'cancelled' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+              return (
+                <button key={iso} type="button" className={className} onClick={() => onPick(iso)}>
+                  <strong>{Number(iso.slice(8, 10))}</strong>
+                  <span>{code}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function periodGroups(date: string, period: Period): { key: string; label: string; days: string[]; blanks: string[] }[] {
+  if (period === 'week') {
+    const start = startOfWeek(date)
+    return [{ key: start, label: '', days: eachDay(start, addDays(start, 6)), blanks: [] }]
+  }
+  if (period === 'month') {
+    return [monthGroup(date)]
+  }
+  const quarter = quarterInfo(date)
+  const months: { key: string; label: string; days: string[]; blanks: string[] }[] = []
+  let cursor = quarter.start
+  while (cursor <= quarter.end) {
+    months.push(monthGroup(cursor))
+    const next = parseMonthAfter(cursor)
+    if (next <= cursor) break
+    cursor = next
+  }
+  return months
+}
+
+function monthGroup(iso: string): { key: string; label: string; days: string[]; blanks: string[] } {
+  const start = startOfMonth(iso)
+  const weekday = dayCodeFromIso(start)
+  const blankCount = Math.max(0, WEEKDAY_CODES.indexOf(weekday || 'T2'))
+  return {
+    key: start,
+    label: `Tháng ${start.slice(5, 7)}/${start.slice(0, 4)}`,
+    days: eachDay(start, endOfMonth(iso)),
+    blanks: Array.from({ length: blankCount }, (_, index) => `${start}-blank-${index}`),
+  }
+}
+
+function parseMonthAfter(iso: string): string {
+  const [year, month] = iso.split('-').map(Number)
+  const nextMonth = month === 12 ? 1 : month + 1
+  const nextYear = month === 12 ? year + 1 : year
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 }
 
 function classFor(status: AttendanceStatus, on: boolean) {

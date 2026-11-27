@@ -300,6 +300,55 @@ button {
   padding-bottom: 2px;
 }
 
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.day-card {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px 2px;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.day-card strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.day-card span {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.day-card.today {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.day-card.active {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+.day-card.active span {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.day-head {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 .filter-select {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -525,6 +574,10 @@ button {
   background: var(--gray-soft);
   border-radius: 12px;
   padding: 4px;
+}
+
+.seg.seg-3 {
+  grid-template-columns: 1fr 1fr 1fr;
 }
 
 .seg button {

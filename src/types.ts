@@ -22,7 +22,7 @@ export type BeltRank =
   | 'Nhị đẳng'
   | 'Tam đẳng'
 
-export type SessionDay = 'T3' | 'T5' | 'CN' | 'Bù'
+export type SessionDay = 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'CN' | 'Bù'
 
 export type SessionKind = 'regular' | 'cancelled' | 'makeup'
 

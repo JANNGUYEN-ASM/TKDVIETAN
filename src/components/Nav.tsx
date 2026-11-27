@@ -57,7 +57,6 @@ export function DesktopSidebar() {
         <h1>
           CLB TAEKWONDO <span style={{ color: 'var(--accent)' }}>VIỆT AN</span>
         </h1>
-        <p>Vận hành CLB · một lớp T3/T5/CN</p>
       </div>
       {visible.map((l) => (
         <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
