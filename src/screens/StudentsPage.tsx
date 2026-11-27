@@ -173,9 +173,11 @@ export function StudentsPage() {
         </div>
 
         <p className="roster-count">
-          {state.students.length} học viên
+          {state.students.filter((s) => s.status === 'Đang học').length} đang học
+          {state.students.some((s) => s.status === 'Nghỉ học')
+            ? ` · ${state.students.filter((s) => s.status === 'Nghỉ học').length} nghỉ học`
+            : ''}
           {list.length !== state.students.length ? ` · đang hiện ${list.length}` : ''}
-          {hideQuit ? ' · đã ẩn nghỉ học' : ''}
         </p>
 
         <div className="card">

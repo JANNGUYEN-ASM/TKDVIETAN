@@ -1,39 +1,51 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
 import { nextBelt } from '../lib/belt'
 import { ageYearsFromDob } from '../lib/grade'
 import { useStore } from '../store'
+import type { AttendanceStatus } from '../types'
 
 export function BeltsPage() {
-  const { state, upsertStudent } = useStore()
+  const { state, promoteBelts } = useStore()
+  const [picked, setPicked] = useState<string[]>([])
 
   const rows = useMemo(() => {
     return state.students
       .filter((s) => s.status === 'Đang học')
+      .slice()
+      .sort((a, b) => a.stt - b.stt)
       .map((s) => {
-        const age = ageYearsFromDob(s.dob) ?? 12
-        const toBelt = nextBelt(s.belt, age)
-        const sessions = state.sessions
-        const present = state.attendance.filter(
-          (a) => a.studentId === s.id && (a.status === 'Có mặt' || a.status === 'Trễ'),
-        ).length
-        const totalPossible = Math.max(sessions.length, 1)
-        const rate = present / totalPossible
-        const eligible = rate >= 0.5 || sessions.length === 0
+        const age = ageYearsFromDob(s.dob)
+        const marks = state.attendance.filter((a) => a.studentId === s.id)
         return {
           student: s,
-          toBelt,
-          eligible,
-          reason: eligible ? 'Đủ thi' : 'Thiếu chuyên cần',
+          age,
+          toBelt: age == null ? s.belt : nextBelt(s.belt, age),
+          attendance: countMarks(marks.map((mark) => mark.status)),
         }
       })
-  }, [state.students, state.attendance, state.sessions])
+  }, [state.students, state.attendance])
 
-  function promote(studentId: string) {
-    const row = rows.find((r) => r.student.id === studentId)
-    if (!row) return
-    upsertStudent({ ...row.student, belt: row.toBelt })
+  const ready = rows.filter((row) => row.age != null && row.age >= 6 && row.toBelt !== row.student.belt)
+  const tooYoung = rows.filter((row) => row.age != null && row.age < 6)
+  const missingAge = rows.filter((row) => row.age == null)
+  const pickedReady = ready.filter((row) => picked.includes(row.student.id))
+
+  function toggle(id: string) {
+    setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  }
+
+  function promote() {
+    if (pickedReady.length === 0) return
+    const names =
+      pickedReady.length > 6
+        ? `${pickedReady.length} võ sinh`
+        : pickedReady.map((row) => row.student.fullName).join(', ')
+    const ok = window.confirm(`Thăng 1 cấp cho ${names}? Đai mới đồng bộ theo mã đang dùng.`)
+    if (!ok) return
+    promoteBelts(pickedReady.map((row) => row.student.id))
+    setPicked([])
   }
 
   return (
@@ -42,41 +54,92 @@ export function BeltsPage() {
       <div className="main-scroll stack">
         <div className="banner banner-warn">Dữ liệu CLB — không phải chứng chỉ liên đoàn</div>
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Đai trắng Cấp 10 (không vạch) → Cấp 9…Cấp 1 → dưới 15: Đai đen đỏ (Poom) / từ 15: Đai đen + đẳng.
+          Thi từ 6 tuổi, tuổi tính theo năm. Chọn người đã học bài thi rồi bấm thăng 1 cấp. Vắng và có phép chỉ để
+          xem chuyên cần, không chặn thăng đai. Đai mới nằm trong hồ sơ nên máy đang dùng chung mã đồng bộ sẽ nhận cùng
+          một bản.
         </p>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Đủ điều kiện thi</h3>
-          {rows.map((r) => (
-            <div
-              key={r.student.id}
-              className="row between"
-              style={{ padding: '12px 0', borderBottom: '1px solid var(--line)', alignItems: 'flex-start' }}
+          <div className="row between" style={{ gap: 8, alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>Sau kỳ thi</h3>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '8px 10px' }}
+              onClick={() =>
+                setPicked((current) =>
+                  current.length === ready.length ? [] : ready.map((row) => row.student.id),
+                )
+              }
             >
-              <div className="row" style={{ alignItems: 'flex-start' }}>
-                <BeltBadge belt={r.student.belt} />
-                <div>
-                  <strong>{r.student.fullName}</strong>
-                  <p className="muted" style={{ margin: '4px 0' }}>
-                    {r.student.belt} → {r.toBelt}
-                  </p>
-                  <span className={`chip ${r.eligible ? 'chip-green' : 'chip-amber'}`}>{r.reason}</span>
-                </div>
-              </div>
-              {r.eligible && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ padding: '8px 12px', fontSize: '0.8rem' }}
-                  onClick={() => promote(r.student.id)}
-                >
-                  Đánh dấu đã thi
-                </button>
-              )}
-            </div>
-          ))}
+              {pickedReady.length === ready.length && ready.length > 0 ? 'Bỏ chọn' : 'Chọn tất cả'}
+            </button>
+          </div>
+          {ready.length === 0 && <p className="muted">Chưa có võ sinh từ 6 tuổi để thăng cấp.</p>}
+          {ready.map((row) => {
+            const on = picked.includes(row.student.id)
+            const marks = row.attendance
+            return (
+              <label
+                key={row.student.id}
+                className="row between"
+                style={{ padding: '12px 0', borderBottom: '1px solid var(--line)', alignItems: 'flex-start', gap: 8 }}
+              >
+                <span className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    aria-label={`Chọn ${row.student.fullName}`}
+                    onChange={() => toggle(row.student.id)}
+                    style={{ marginTop: 6 }}
+                  />
+                  <BeltBadge belt={row.student.belt} />
+                  <span>
+                    <strong>
+                      {row.student.stt}. {row.student.fullName}
+                    </strong>
+                    <span className="muted" style={{ display: 'block', marginTop: 4 }}>
+                      {row.age} tuổi · {row.student.belt} → {row.toBelt}
+                    </span>
+                    <span className="muted" style={{ display: 'block', marginTop: 4 }}>
+                      Có mặt {marks.present} · Trễ {marks.late} · Vắng {marks.absent} · Có phép {marks.excused}
+                    </span>
+                  </span>
+                </span>
+              </label>
+            )
+          })}
+          <button type="button" className="btn btn-primary btn-block" disabled={pickedReady.length === 0} onClick={promote}>
+            Thăng 1 cấp ({pickedReady.length})
+          </button>
         </div>
+
+        {tooYoung.length > 0 && (
+          <div className="card stack">
+            <h3 style={{ margin: 0 }}>Chưa đủ 6 tuổi</h3>
+            {tooYoung.map((row) => (
+              <div key={row.student.id}>
+                {row.student.stt}. {row.student.fullName} · {row.age} tuổi
+              </div>
+            ))}
+          </div>
+        )}
+
+        {missingAge.length > 0 && (
+          <p className="muted" style={{ margin: 0 }}>
+            Chưa có năm sinh, chưa đưa vào danh sách thi: {missingAge.map((row) => row.student.fullName).join(', ')}
+          </p>
+        )}
       </div>
     </>
   )
+}
+
+function countMarks(statuses: AttendanceStatus[]) {
+  return {
+    present: statuses.filter((status) => status === 'Có mặt').length,
+    late: statuses.filter((status) => status === 'Trễ').length,
+    absent: statuses.filter((status) => status === 'Vắng').length,
+    excused: statuses.filter((status) => status === 'Có phép').length,
+  }
 }

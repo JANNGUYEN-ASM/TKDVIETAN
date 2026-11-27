@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CLASS_TIME, createInitialState, LEGACY_DEFAULT_FEE, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
-import { canonicalBelt } from './lib/belt'
+import { CLASS_TIME, createInitialState, DEFAULT_QUARTER_FEE, LEGACY_DEFAULT_FEE, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
+import { canonicalBelt, nextBelt } from './lib/belt'
+import { ageYearsFromDob } from './lib/grade'
 import { canonicalFee, migrateFeeAmount } from './lib/fees'
 import { mergeClubState, removedIds, revisionOf } from './lib/mergeState'
 import { keepClubState } from './lib/stripDemo'
@@ -41,6 +42,10 @@ function normalizeState(raw: AppState): AppState {
         raw.settings?.defaultFee === LEGACY_DEFAULT_FEE
           ? base.settings.defaultFee
           : (raw.settings?.defaultFee ?? base.settings.defaultFee),
+      defaultQuarterFee:
+        typeof raw.settings?.defaultQuarterFee === 'number' && raw.settings.defaultQuarterFee >= 0
+          ? raw.settings.defaultQuarterFee
+          : DEFAULT_QUARTER_FEE,
     },
     sessions: normalizeSessions(raw.sessions || []),
     students: ensureStudentCodes(raw.students || []).map((student) => ({
@@ -70,6 +75,7 @@ type Store = {
   updateSettings: (patch: Partial<ClubSettings>) => void
   setDefaultFee: (amount: number) => void
   upsertStudent: (student: Student) => void
+  promoteBelts: (ids: string[]) => void
   deleteStudent: (id: string) => void
   replaceStudents: (students: Student[], mode: 'merge' | 'replace') => void
   ensureSession: (session: ClassSession) => void
@@ -275,6 +281,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       next[i] = assignCodesForNew(student)
       return { ...s, removedStudentIds, students: next }
     })
+  }, [])
+
+  const promoteBelts = useCallback((ids: string[]) => {
+    const chosen = new Set(ids)
+    setState((s) => ({
+      ...s,
+      students: s.students.map((student) => {
+        if (!chosen.has(student.id) || student.status !== 'Đang học') return student
+        const age = ageYearsFromDob(student.dob)
+        if (age == null || age < 6) return student
+        const belt = nextBelt(student.belt, age)
+        if (belt === student.belt) return student
+        return { ...student, belt }
+      }),
+    }))
   }, [])
 
   const deleteStudent = useCallback((id: string) => {
@@ -542,6 +563,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateSettings,
       setDefaultFee,
       upsertStudent,
+      promoteBelts,
       deleteStudent,
       replaceStudents,
       ensureSession,
@@ -569,6 +591,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateSettings,
       setDefaultFee,
       upsertStudent,
+      promoteBelts,
       deleteStudent,
       replaceStudents,
       ensureSession,

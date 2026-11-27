@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getIdentity } from '../../../cursor/identity'
 import { bookFor } from '../../../src/lib/bookAccess'
-import { createInitialState, LEGACY_DEFAULT_FEE } from '../../../src/data/seed'
+import { createInitialState, DEFAULT_QUARTER_FEE, LEGACY_DEFAULT_FEE } from '../../../src/data/seed'
 import { canonicalBelt } from '../../../src/lib/belt'
 import { canonicalFee, migrateFeeAmount } from '../../../src/lib/fees'
 import { sql } from '../../../src/lib/db'
@@ -42,6 +42,12 @@ function normalizeState(raw: unknown): AppState {
             ? base.settings.defaultFee
             : settings.defaultFee
           : base.settings.defaultFee,
+      defaultQuarterFee:
+        typeof settings?.defaultQuarterFee === 'number' &&
+        Number.isFinite(settings.defaultQuarterFee) &&
+        settings.defaultQuarterFee >= 0
+          ? settings.defaultQuarterFee
+          : DEFAULT_QUARTER_FEE,
       defaultCourse:
         typeof settings?.defaultCourse === 'string'
           ? settings.defaultCourse.slice(0, 80)

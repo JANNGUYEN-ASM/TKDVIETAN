@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { BrandHeader } from '../components/BrandHeader'
-import { formatMoney } from '../lib/format'
+import { SIBLING_MONTH_FEE } from '../data/seed'
+import { formatMoney, quarterLabel } from '../lib/format'
 import { useStore } from '../store'
-import { EXTRA_FEE_MODES, type FeeMode, type FeeRecord, type FeeStatus, type Student } from '../types'
+import { EXAM_ROUNDS, EXTRA_FEE_MODES, TUITION_FEE_MODES, type FeeRecord, type FeeStatus, type Student } from '../types'
 
 export function FeesPage() {
   const { state, upsertFee, updateSettings, setDefaultFee } = useStore()
-  const [mode, setMode] = useState<FeeMode>('tháng')
+  const [mode, setMode] = useState<(typeof TUITION_FEE_MODES)[number]>('tháng')
   const [month, setMonth] = useState('2026-11')
   const [coursePeriod, setCoursePeriod] = useState(state.settings.defaultCourse || 'I-25')
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
@@ -19,8 +20,9 @@ export function FeesPage() {
     return <Navigate to="/bao-cao" replace />
   }
 
-  const period = mode === 'tháng' ? month : coursePeriod
-  const defaultFee = state.settings.defaultFee
+  const period = mode === 'tháng' ? month : mode === 'quý' ? quarterKey(month) : coursePeriod
+  const defaultFee = mode === 'quý' ? state.settings.defaultQuarterFee : state.settings.defaultFee
+  const examYear = Number(month.slice(0, 4)) || new Date().getFullYear()
 
   const rows = useMemo(() => {
     const fees = state.fees.filter((f) => f.mode === mode && f.period === period)
@@ -54,7 +56,7 @@ export function FeesPage() {
   const activeIds = new Set(rows.map((row) => row.student.id))
   const totals = [
     ...rows.map((r) => r.fee),
-    ...state.fees.filter((f) => !['tháng', 'khóa'].includes(f.mode) && activeIds.has(f.studentId)),
+    ...state.fees.filter((f) => !(TUITION_FEE_MODES as readonly string[]).includes(f.mode) && activeIds.has(f.studentId)),
   ].reduce(
     (acc, fee) => {
       if (fee.status === 'Miễn') return acc
@@ -69,15 +71,18 @@ export function FeesPage() {
   function saveExtra(
     studentId: string,
     extra: (typeof EXTRA_FEE_MODES)[number],
+    chargePeriod: string,
     patch: { amount?: number; status?: FeeStatus },
+    existingId?: string,
   ) {
-    const id = `extra-${extra}-${studentId}`
-    const existing = state.fees.find((f) => f.id === id)
+    const legacy = state.fees.find((fee) => fee.studentId === studentId && fee.mode === extra && fee.period === chargePeriod)
+    const id = existingId || legacy?.id || `extra-${extra}-${chargePeriod}-${studentId}`
+    const existing = state.fees.find((fee) => fee.id === id)
     upsertFee({
       id,
       studentId,
       mode: extra,
-      period: 'một lần',
+      period: chargePeriod,
       amount: patch.amount ?? existing?.amount ?? 0,
       status: patch.status ?? existing?.status ?? 'Chưa thu',
     })
@@ -121,12 +126,25 @@ export function FeesPage() {
                   onChange={(e) => setDefaultFee(Number(e.target.value) || 0)}
                 />
               </label>
-              <div className="seg">
+              <label>
+                Mức đóng quý (đ)
+                <input
+                  type="number"
+                  min={0}
+                  step={50000}
+                  value={state.settings.defaultQuarterFee}
+                  onChange={(e) => updateSettings({ defaultQuarterFee: Number(e.target.value) || 0 })}
+                />
+              </label>
+              <div className="seg seg-3">
                 <button type="button" className={mode === 'tháng' ? 'active' : ''} onClick={() => setMode('tháng')}>
-                  Theo tháng
+                  Tháng
+                </button>
+                <button type="button" className={mode === 'quý' ? 'active' : ''} onClick={() => setMode('quý')}>
+                  Quý
                 </button>
                 <button type="button" className={mode === 'khóa' ? 'active' : ''} onClick={() => setMode('khóa')}>
-                  Theo khóa
+                  Khóa
                 </button>
               </div>
               {mode === 'khóa' && (
@@ -143,18 +161,21 @@ export function FeesPage() {
                 </label>
               )}
               <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                Chỉ hiện võ sinh đang học. Bấm tên để xem học phí và các khoản khác.
+                Tháng {formatMoney(state.settings.defaultFee)}. Hai anh em {formatMoney(SIBLING_MONTH_FEE)}/tháng, ghi một
+                lần và người còn lại chọn Miễn. Quý {formatMoney(state.settings.defaultQuarterFee)}. Lệ phí thi bốn lần
+                một năm, mở trong hồ sơ võ sinh. Võ phục điền khi có người mua thêm.
               </p>
             </div>
           )}
         </div>}
 
         {!selected && <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          {mode === 'tháng' ? (
-            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="search" />
-          ) : (
+          {mode === 'khóa' ? (
             <span className="chip chip-outline active">Khóa {coursePeriod || '—'}</span>
+          ) : (
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="search" aria-label="Kỳ học phí" />
           )}
+          {mode === 'quý' && <span className="chip chip-outline active">{quarterLabel(`${month}-01`)} · {formatMoney(defaultFee)}</span>}
           <input
             className="search"
             style={{ flex: 1, minWidth: 160 }}
@@ -200,7 +221,22 @@ export function FeesPage() {
             onStatus={(status) =>
               saveFee(selected.fee.id, selected.student.id, { status, amount: selected.fee.amount })
             }
-            onExtra={(extra, patch) => saveExtra(selected.student.id, extra, patch)}
+            showSibling={mode === 'tháng'}
+            onSibling={() =>
+              saveFee(selected.fee.id, selected.student.id, {
+                amount: SIBLING_MONTH_FEE,
+                status: selected.fee.status === 'Miễn' ? 'Chưa thu' : selected.fee.status,
+              })
+            }
+            examYear={examYear}
+            examRounds={EXAM_ROUNDS.map((round) => ({
+              round,
+              fee: examFeeFor(state.fees, selected.student.id, examYear, round),
+            }))}
+            onExam={(round, patch, existingId) =>
+              saveExtra(selected.student.id, 'lệ phí thi', `${examYear}-L${round}`, patch, existingId)
+            }
+            onExtra={(extra, patch) => saveExtra(selected.student.id, extra, 'một lần', patch)}
           />
         ) : (
           <div className="card">
@@ -232,22 +268,33 @@ function StudentFeeDetail({
   fee,
   extras,
   editingAmountId,
+  showSibling,
+  examYear,
+  examRounds,
   onBack,
   onEditAmount,
   onSaveAmount,
   onStatus,
+  onSibling,
+  onExam,
   onExtra,
 }: {
   student: Student
   fee: FeeRecord
   extras: FeeRecord[]
   editingAmountId: string | null
+  showSibling: boolean
+  examYear: number
+  examRounds: { round: number; fee?: FeeRecord }[]
   onBack: () => void
   onEditAmount: () => void
   onSaveAmount: (amount: number) => void
   onStatus: (status: FeeStatus) => void
+  onSibling: () => void
+  onExam: (round: number, patch: { amount?: number; status?: FeeStatus }, existingId?: string) => void
   onExtra: (extra: (typeof EXTRA_FEE_MODES)[number], patch: { amount?: number; status?: FeeStatus }) => void
 }) {
+  const once = extras.filter((item) => item.mode !== 'lệ phí thi')
   return (
     <div className="card stack">
       <button type="button" className="btn btn-ghost" onClick={onBack}>
@@ -265,12 +312,17 @@ function StudentFeeDetail({
         onSaveAmount={onSaveAmount}
         onStatus={onStatus}
       />
-      {EXTRA_FEE_MODES.map((extra) => {
-        const saved = extras.find((item) => item.mode === extra)
+      {showSibling && (
+        <button type="button" className="btn btn-ghost" onClick={onSibling}>
+          Mức 2 anh em {formatMoney(SIBLING_MONTH_FEE)}
+        </button>
+      )}
+      {EXTRA_FEE_MODES.filter((extra) => extra !== 'lệ phí thi').map((extra) => {
+        const saved = once.find((item) => item.mode === extra && (item.period === 'một lần' || !item.period))
         return (
           <FeeEditor
             key={extra}
-            label={extra}
+            label={extra === 'võ phục' ? 'võ phục (mua thêm thì điền)' : extra}
             amount={saved?.amount ?? 0}
             status={saved?.status ?? 'Chưa thu'}
             editing={false}
@@ -279,8 +331,34 @@ function StudentFeeDetail({
           />
         )
       })}
+      <h3 style={{ margin: '8px 0 0' }}>Lệ phí thi {examYear}</h3>
+      {examRounds.map(({ round, fee: exam }) => (
+        <FeeEditor
+          key={round}
+          label={`Lần ${round}`}
+          amount={exam?.amount ?? 0}
+          status={exam?.status ?? 'Chưa thu'}
+          editing={false}
+          onSaveAmount={(amount) => onExam(round, { amount, status: exam?.status ?? 'Chưa thu' }, exam?.id)}
+          onStatus={(status) => onExam(round, { amount: exam?.amount ?? 0, status }, exam?.id)}
+        />
+      ))}
     </div>
   )
+}
+
+function quarterKey(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const quarter = Math.floor(((monthNumber || 1) - 1) / 3) + 1
+  return `${year || new Date().getFullYear()}-Q${quarter}`
+}
+
+function examFeeFor(fees: FeeRecord[], studentId: string, year: number, round: number): FeeRecord | undefined {
+  const period = `${year}-L${round}`
+  const saved = fees.find((fee) => fee.studentId === studentId && fee.mode === 'lệ phí thi' && fee.period === period)
+  if (saved) return saved
+  if (round !== 1) return undefined
+  return fees.find((fee) => fee.studentId === studentId && fee.mode === 'lệ phí thi' && fee.period === 'một lần')
 }
 
 function FeeEditor({
