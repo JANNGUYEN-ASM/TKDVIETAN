@@ -13,6 +13,22 @@ export const COLOR_BELTS: BeltRank[] = [
   'Cấp 1',
 ]
 
+const BELT_ORDER: BeltRank[] = [
+  ...COLOR_BELTS,
+  'Poom 1',
+  'Poom 2',
+  'Poom 3',
+  'Nhất đẳng',
+  'Nhị đẳng',
+  'Tam đẳng',
+]
+
+/** Lower number is the beginner belt. Cấp 10 comes before Cấp 1, then Poom, then đẳng. */
+export function beltSortValue(belt: string): number {
+  const index = BELT_ORDER.indexOf(belt as BeltRank)
+  return index === -1 ? BELT_ORDER.length : index
+}
+
 /** Parse Excel "Cấp bậc" like "2" or "Cấp 2" → BeltRank */
 export function parseBelt(raw: string | number | undefined): BeltRank {
   if (raw == null || raw === '') return 'Cấp 10'

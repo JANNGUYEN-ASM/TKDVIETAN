@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom'
 import { BeltBadge } from '../components/BeltBadge'
 import { BrandHeader } from '../components/BrandHeader'
 import { SyncCard } from '../components/SyncCard'
-import { COLOR_BELTS, beltLabel, isWhiteBelt } from '../lib/belt'
+import { COLOR_BELTS, beltLabel, beltSortValue, isWhiteBelt } from '../lib/belt'
 import { downloadStudentsExcel, downloadWhiteBeltExcel } from '../lib/exportExcel'
 import { dobSortValue, incompleteStudent, initials } from '../lib/format'
 import { useStore } from '../store'
 import type { BeltRank, Gender, StudentStatus } from '../types'
 
 type Filter = 'all' | StudentStatus | 'course' | 'missing'
-type DobSort = 'stt' | 'dob'
+type DobSort = 'stt' | 'dob' | 'belt'
 
 export function StudentsPage() {
   const { state } = useStore()
@@ -19,6 +19,7 @@ export function StudentsPage() {
   const [belt, setBelt] = useState<'' | BeltRank>('')
   const [gender, setGender] = useState<'' | Gender>('')
   const [sort, setSort] = useState<DobSort>('stt')
+  const [hideQuit, setHideQuit] = useState(false)
 
   const beltOptions = useMemo(() => {
     const extra = state.students
@@ -40,6 +41,7 @@ export function StudentsPage() {
       })
       .filter((s) => (belt ? s.belt === belt : true))
       .filter((s) => (gender ? s.gender === gender : true))
+      .filter((s) => !(hideQuit && filter !== 'Nghỉ học' && s.status === 'Nghỉ học'))
       .filter((s) => {
         if (!query) return true
         return (
@@ -52,10 +54,12 @@ export function StudentsPage() {
         )
       })
       .slice()
-      .sort((a, b) =>
-        sort === 'dob' ? dobSortValue(a.dob) - dobSortValue(b.dob) || a.stt - b.stt : a.stt - b.stt,
-      )
-  }, [state.students, state.settings.defaultCourse, q, filter, belt, gender, sort])
+      .sort((a, b) => {
+        if (sort === 'dob') return dobSortValue(a.dob) - dobSortValue(b.dob) || a.stt - b.stt
+        if (sort === 'belt') return beltSortValue(a.belt) - beltSortValue(b.belt) || a.stt - b.stt
+        return a.stt - b.stt
+      })
+  }, [state.students, state.settings.defaultCourse, q, filter, belt, gender, sort, hideQuit])
 
   const missingCount = state.students.filter((s) => incompleteStudent(s).length > 0).length
 
@@ -152,24 +156,36 @@ export function StudentsPage() {
           <select className="filter-select" value={sort} onChange={(e) => setSort(e.target.value as DobSort)}>
             <option value="stt">Sắp theo STT</option>
             <option value="dob">Ngày sinh thấp → cao</option>
+            <option value="belt">Cấp đai thấp → cao</option>
           </select>
+          <button
+            type="button"
+            className={`chip chip-outline${hideQuit ? ' active' : ''}`}
+            onClick={() => setHideQuit((on) => !on)}
+          >
+            Ẩn nghỉ học
+          </button>
         </div>
 
         <p className="roster-count">
           {state.students.length} học viên
           {list.length !== state.students.length ? ` · đang hiện ${list.length}` : ''}
+          {hideQuit ? ' · đã ẩn nghỉ học' : ''}
         </p>
 
         <div className="card">
-          {list.length === 0 && (
+          {list.length === 0 && state.students.length === 0 && (
             <p className="muted">
               Chưa có võ sinh.{' '}
               <Link to="/vo-sinh/moi">Thêm mới</Link> hoặc <Link to="/nhap-excel">nhập Excel</Link>.
             </p>
           )}
+          {list.length === 0 && state.students.length > 0 && (
+            <p className="muted">Không có võ sinh trong bộ lọc này.</p>
+          )}
           {list.map((s, index) => {
             const miss = incompleteStudent(s)
-            const order = sort === 'dob' ? index + 1 : s.stt
+            const order = sort === 'stt' ? s.stt : index + 1
             return (
               <Link key={s.id} to={`/vo-sinh/${s.id}`} className="student-item">
                 <span className="stt-col">{order}</span>
