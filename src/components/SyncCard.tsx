@@ -25,9 +25,9 @@ export function SyncCard() {
 
   return (
     <div className="card stack">
-      <strong>Đồng bộ điện thoại và máy tính</strong>
+      <strong>Chuyển danh sách sang điện thoại</strong>
       <p className="muted" style={{ margin: 0 }}>
-        Danh sách nhập trên điện thoại đang nằm trong máy đó. Tạo một mã trên điện thoại, rồi nhập đúng mã này trên máy kia để cả hai dùng chung database.
+        Trên máy tính đang có dữ liệu, bấm tạo mã. Mở cùng link trên điện thoại, nhập đúng mã đó rồi bấm Lấy dữ liệu.
       </p>
       {syncCode ? (
         <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, letterSpacing: '0.08em' }}>{syncCode}</p>

@@ -300,6 +300,25 @@ button {
   padding-bottom: 2px;
 }
 
+.fee-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.fee-line button.name {
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  min-width: 0;
+}
+
 .day-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

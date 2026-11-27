@@ -9,8 +9,9 @@ import { dobSortValue, incompleteStudent, initials } from '../lib/format'
 import { useStore } from '../store'
 import type { BeltRank, Gender, StudentStatus } from '../types'
 
-type Filter = 'all' | StudentStatus | 'course' | 'missing'
+type Filter = 'all' | StudentStatus | 'missing'
 type DobSort = 'stt' | 'dob' | 'belt'
+type SortDir = 'asc' | 'desc'
 
 export function StudentsPage() {
   const { state } = useStore()
@@ -19,6 +20,7 @@ export function StudentsPage() {
   const [belt, setBelt] = useState<'' | BeltRank>('')
   const [gender, setGender] = useState<'' | Gender>('')
   const [sort, setSort] = useState<DobSort>('stt')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [hideQuit, setHideQuit] = useState(false)
 
   const beltOptions = useMemo(() => {
@@ -35,7 +37,6 @@ export function StudentsPage() {
     return state.students
       .filter((s) => {
         if (filter === 'Đang học' || filter === 'Nghỉ học') return s.status === filter
-        if (filter === 'course') return s.course === state.settings.defaultCourse || s.course === 'I-25'
         if (filter === 'missing') return incompleteStudent(s).length > 0
         return true
       })
@@ -55,11 +56,12 @@ export function StudentsPage() {
       })
       .slice()
       .sort((a, b) => {
-        if (sort === 'dob') return dobSortValue(a.dob) - dobSortValue(b.dob) || a.stt - b.stt
-        if (sort === 'belt') return beltSortValue(a.belt) - beltSortValue(b.belt) || a.stt - b.stt
-        return a.stt - b.stt
+        const direction = sortDir === 'asc' ? 1 : -1
+        if (sort === 'dob') return (dobSortValue(a.dob) - dobSortValue(b.dob) || a.stt - b.stt) * direction
+        if (sort === 'belt') return (beltSortValue(a.belt) - beltSortValue(b.belt) || a.stt - b.stt) * direction
+        return (a.stt - b.stt) * direction
       })
-  }, [state.students, state.settings.defaultCourse, q, filter, belt, gender, sort, hideQuit])
+  }, [state.students, q, filter, belt, gender, sort, sortDir, hideQuit])
 
   const missingCount = state.students.filter((s) => incompleteStudent(s).length > 0).length
 
@@ -120,7 +122,6 @@ export function StudentsPage() {
               ['all', 'Tất cả'],
               ['Đang học', 'Đang học'],
               ['Nghỉ học', 'Nghỉ học'],
-              ['course', `Khóa ${state.settings.defaultCourse || 'I-25'}`],
               ['missing', 'Thiếu thông tin'],
             ] as const
           ).map(([key, label]) => (
@@ -137,7 +138,7 @@ export function StudentsPage() {
 
         <div className="filters">
           <select className="filter-select" value={belt} onChange={(e) => setBelt(e.target.value as '' | BeltRank)}>
-            <option value="">Mọi cấp đai</option>
+            <option value="">Cấp đai</option>
             {beltOptions.map((b) => (
               <option key={b} value={b}>
                 {beltLabel(b)}
@@ -149,14 +150,18 @@ export function StudentsPage() {
             value={gender}
             onChange={(e) => setGender(e.target.value as '' | Gender)}
           >
-            <option value="">Mọi giới tính</option>
+            <option value="">Giới tính</option>
             <option value="Nam">Nam</option>
             <option value="Nữ">Nữ</option>
           </select>
           <select className="filter-select" value={sort} onChange={(e) => setSort(e.target.value as DobSort)}>
-            <option value="stt">Sắp theo STT</option>
-            <option value="dob">Ngày sinh thấp → cao</option>
-            <option value="belt">Cấp đai thấp → cao</option>
+            <option value="stt">STT</option>
+            <option value="dob">Ngày sinh</option>
+            <option value="belt">Cấp đai</option>
+          </select>
+          <select className="filter-select" value={sortDir} onChange={(e) => setSortDir(e.target.value as SortDir)}>
+            <option value="asc">Thấp → cao</option>
+            <option value="desc">Cao → thấp</option>
           </select>
           <button
             type="button"
