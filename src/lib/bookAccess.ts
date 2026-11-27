@@ -4,7 +4,8 @@ const SUB_PATTERN = /^[\w:.-]{1,120}$/
 
 /**
  * The club book belongs to one signed-in person.
- * Another Cursor account cannot read or replace it, and a public caller never gets a book.
+ * Another Cursor account cannot read or replace it.
+ * A public link has no signed-in book; those devices share a database only with the club sync code.
  */
 export function bookFor(identity: VerifiedIdentity): { rowId: string } | null {
   if (identity.kind !== 'person') return null

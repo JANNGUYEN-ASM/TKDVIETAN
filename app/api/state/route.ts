@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
-import { requireIdentity } from '../../../cursor/identity'
+import { getIdentity } from '../../../cursor/identity'
 import { bookFor } from '../../../src/lib/bookAccess'
 import { createInitialState, LEGACY_DEFAULT_FEE } from '../../../src/data/seed'
 import { canonicalBelt } from '../../../src/lib/belt'
 import { canonicalFee, migrateFeeAmount } from '../../../src/lib/fees'
 import { sql } from '../../../src/lib/db'
+import { mergeClubState, removedIds } from '../../../src/lib/mergeState'
 import { keepClubState } from '../../../src/lib/stripDemo'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
+import { clubRowId } from '../../../src/lib/syncBook'
+import { SYNC_HEADER } from '../../../src/lib/syncCode'
 import type { AppState, AttendanceRecord, ClassSession, FeeRecord, Student } from '../../../src/types'
 
 export const dynamic = 'force-dynamic'
@@ -54,6 +57,7 @@ function normalizeState(raw: unknown): AppState {
       const next = canonicalFee(fee)
       return { ...next, amount: migrateFeeAmount(next.amount, next.mode, legacyFee) }
     }),
+    removedStudentIds: removedIds(obj.removedStudentIds),
   }
 }
 
@@ -62,11 +66,22 @@ function prepareState(raw: unknown): AppState {
 }
 
 async function openBook(request: Request) {
-  const identity = await requireIdentity(request)
-  if (identity instanceof Response) return identity
-  const book = bookFor(identity)
-  if (!book) return json({ error: 'forbidden' }, 403)
-  return book
+  const identity = await getIdentity(request)
+  if (identity.verified) {
+    const book = bookFor(identity)
+    if (book) return book
+  }
+  const rowId = clubRowId(request.headers.get(SYNC_HEADER) || '')
+  if (!rowId) return json({ error: 'unauthorized' }, 401)
+  return { rowId }
+}
+
+async function clubHasRoom(rowId: string): Promise<boolean> {
+  if (!rowId.startsWith('club:')) return true
+  const existing = await sql<{ id: string }>('select id from club_data where id = $1', [rowId])
+  if (existing.length > 0) return true
+  const counts = await sql<{ n: number }>('select count(*)::int as n from club_data where id like $1', ['club:%'])
+  return Number(counts[0]?.n ?? 0) < 20
 }
 
 function json(body: unknown, status = 200) {
@@ -83,14 +98,7 @@ export async function GET(request: Request) {
   const rows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
   const row = rows[0]
   if (!row || !row.payload || Object.keys(row.payload as object).length === 0) {
-    const initial = createInitialState()
-    await sql(
-      `insert into club_data (id, payload, updated_at)
-       values ($1, $2::jsonb, now())
-       on conflict (id) do nothing`,
-      [rowId, JSON.stringify(initial)],
-    )
-    return json({ state: initial, updatedAt: new Date().toISOString() })
+    return json({ error: 'not_found' }, 404)
   }
 
   return json({
@@ -113,7 +121,14 @@ export async function PUT(request: Request) {
   } catch {
     return json({ error: 'invalid_json' }, 400)
   }
-  const state = prepareState((body as { state?: unknown })?.state ?? body)
+  if (!(await clubHasRoom(rowId))) return json({ error: 'full' }, 429)
+  const incoming = prepareState((body as { state?: unknown })?.state ?? body)
+  const existingRows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
+  const existing = existingRows[0]
+  const state =
+    existing?.payload && Object.keys(existing.payload as object).length > 0
+      ? mergeClubState(incoming, prepareState(existing.payload))
+      : incoming
   await sql(
     `insert into club_data (id, payload, updated_at)
      values ($1, $2::jsonb, now())

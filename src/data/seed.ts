@@ -17,5 +17,6 @@ export function createInitialState(): AppState {
     sessions: [],
     attendance: [],
     fees: [],
+    removedStudentIds: [],
   }
 }
