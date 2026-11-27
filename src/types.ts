@@ -95,4 +95,5 @@ export type AppState = {
   attendance: AttendanceRecord[]
   fees: FeeRecord[]
   removedStudentIds?: string[]
+  revision?: number
 }

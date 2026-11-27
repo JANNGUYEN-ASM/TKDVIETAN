@@ -11,6 +11,12 @@ function mergeById<T extends { id: string }>(preferred: T[], other: T[]): T[] {
   return [...map.values()]
 }
 
+export function revisionOf(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.min(1_000_000_000, Math.floor(n))
+}
+
 export function removedIds(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   const ids = value.filter((id) => typeof id === 'string' && id.length > 0 && id.length < 80)
@@ -37,5 +43,6 @@ export function mergeClubState(preferred: AppState, other: AppState): AppState {
     fees: mergeById(preferred.fees || [], other.fees || []).filter((fee) => !removed.has(fee.studentId)),
     attendance: [...attendance.values()].filter((record) => !removed.has(record.studentId)),
     removedStudentIds: [...removed],
+    revision: Math.max(revisionOf(preferred.revision), revisionOf(other.revision)),
   }
 }

@@ -5,7 +5,7 @@ import { createInitialState, LEGACY_DEFAULT_FEE } from '../../../src/data/seed'
 import { canonicalBelt } from '../../../src/lib/belt'
 import { canonicalFee, migrateFeeAmount } from '../../../src/lib/fees'
 import { sql } from '../../../src/lib/db'
-import { mergeClubState, removedIds } from '../../../src/lib/mergeState'
+import { mergeClubState, removedIds, revisionOf } from '../../../src/lib/mergeState'
 import { keepClubState } from '../../../src/lib/stripDemo'
 import { ensureStudentCodes } from '../../../src/lib/studentCodes'
 import { clubRowId } from '../../../src/lib/syncBook'
@@ -58,6 +58,7 @@ function normalizeState(raw: unknown): AppState {
       return { ...next, amount: migrateFeeAmount(next.amount, next.mode, legacyFee) }
     }),
     removedStudentIds: removedIds(obj.removedStudentIds),
+    revision: revisionOf(obj.revision),
   }
 }
 
@@ -122,13 +123,21 @@ export async function PUT(request: Request) {
     return json({ error: 'invalid_json' }, 400)
   }
   if (!(await clubHasRoom(rowId))) return json({ error: 'full' }, 429)
-  const incoming = prepareState((body as { state?: unknown })?.state ?? body)
+  const payload = body as { state?: unknown; replace?: unknown }
+  const incoming = prepareState(payload.state ?? body)
+  const replace = payload.replace === true
   const existingRows = await sql<Row>('select payload, updated_at from club_data where id = $1', [rowId])
   const existing = existingRows[0]
-  const state =
+  const existingState =
     existing?.payload && Object.keys(existing.payload as object).length > 0
-      ? mergeClubState(incoming, prepareState(existing.payload))
-      : incoming
+      ? prepareState(existing.payload)
+      : null
+  if (replace) {
+    incoming.revision = revisionOf(existingState?.revision) + 1
+  } else if (existingState && revisionOf(incoming.revision) < revisionOf(existingState.revision)) {
+    return json({ error: 'stale', state: existingState }, 409)
+  }
+  const state = !replace && existingState ? mergeClubState(incoming, existingState) : incoming
   await sql(
     `insert into club_data (id, payload, updated_at)
      values ($1, $2::jsonb, now())
@@ -136,5 +145,5 @@ export async function PUT(request: Request) {
     [rowId, JSON.stringify(state)],
   )
 
-  return json({ ok: true, updatedAt: new Date().toISOString() })
+  return json({ ok: true, state, updatedAt: new Date().toISOString() })
 }

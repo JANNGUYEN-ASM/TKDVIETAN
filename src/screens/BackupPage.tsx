@@ -6,7 +6,7 @@ import { downloadStudentsExcel } from '../lib/exportExcel'
 import { useStore } from '../store'
 
 export function BackupPage() {
-  const { state, replaceAllState } = useStore()
+  const { state, replaceAllState, clearAllData } = useStore()
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -65,7 +65,7 @@ export function BackupPage() {
       }
       replaceAllState(next)
       setMessage(
-        `Đã nhập xong: ${next.students.length} võ sinh, ${next.sessions.length} buổi, ${next.fees.length} khoản phí. Máy này giờ khớp file vừa nhận.`,
+        `Đã nhập xong: ${next.students.length} võ sinh, ${next.sessions.length} buổi, ${next.fees.length} khoản phí. Dữ liệu cũ trên database được thay bằng file này.`,
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không đọc được file')
@@ -82,26 +82,26 @@ export function BackupPage() {
           ← Báo cáo
         </Link>
 
-        <div className="banner banner-warn">
-          <strong>Phone khác Wi‑Fi / khác nơi với máy chủ?</strong> Server local{' '}
-          <em>không tự biết</em> phone vừa nhập gì. Phải gửi file sao lưu (hoặc sau này dùng cloud).
-        </div>
-
         <div className="card stack">
-          <h3 style={{ margin: 0 }}>Tình huống đúng của An</h3>
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: '0.9rem', color: 'var(--muted)' }}>
-            <li>
-              Điện thoại (4G hoặc Wi‑Fi quán) nhập điểm danh / võ sinh → dữ liệu chỉ nằm trên phone.
-            </li>
-            <li>
-              Bấm <strong>Chia sẻ / Tải file</strong> bên dưới → gửi Zalo cho máy ở nhà (hoặc cho chính
-              mình).
-            </li>
-            <li>
-              Máy chủ/PC mở app → trang này → <strong>Nhập file</strong> → máy chủ mới có bản mới.
-            </li>
-            <li>Làm ngược lại nếu sửa trên PC rồi muốn phone khớp.</li>
-          </ol>
+          <h3 style={{ margin: 0 }}>Xóa hết để làm lại</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            File sao lưu đang nằm trên máy của bạn thì vẫn còn. Nút này chỉ xóa danh sách, điểm danh và học phí trong app và trên database.
+          </p>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => {
+              const ok = window.confirm(
+                'Xóa hết võ sinh, điểm danh và học phí trên máy này và trên database? File đã tải về máy vẫn còn. Không hoàn tác.',
+              )
+              if (!ok) return
+              clearAllData()
+              setError('')
+              setMessage('Đang xóa. Khi dòng trạng thái trên cùng hiện “Đã xóa dữ liệu trên database”, có thể nhập file mới ở mục bên dưới hoặc thêm võ sinh từ đầu.')
+            }}
+          >
+            Xóa hết dữ liệu
+          </button>
         </div>
 
         <div className="card stack">
@@ -152,13 +152,9 @@ export function BackupPage() {
         {message && <div className="banner banner-info">{message}</div>}
         {error && <div className="banner banner-warn">{error}</div>}
 
-        <div className="card stack">
-          <h3 style={{ margin: 0 }}>Muốn tự động (không gửi file)?</h3>
-          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-            Cần app host trên internet + database chung. Khi đó phone ở đâu cũng ghi lên server, máy chủ
-            mở vào là thấy. Hiện chưa bật — dùng file tạm thời.
-          </p>
-        </div>
+        <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+          Máy khác đang mở app thì tải lại trang sau khi xóa, để không ghi dữ liệu cũ trở lại.
+        </p>
       </div>
     </>
   )

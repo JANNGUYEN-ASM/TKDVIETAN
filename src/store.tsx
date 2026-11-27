@@ -11,7 +11,7 @@ import {
 import { CLASS_TIME, createInitialState, LEGACY_DEFAULT_FEE, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data/seed'
 import { canonicalBelt } from './lib/belt'
 import { canonicalFee, migrateFeeAmount } from './lib/fees'
-import { mergeClubState, removedIds } from './lib/mergeState'
+import { mergeClubState, removedIds, revisionOf } from './lib/mergeState'
 import { keepClubState } from './lib/stripDemo'
 import { createSyncCode, normalizeSyncCode, SYNC_CODE_KEY, SYNC_HEADER } from './lib/syncCode'
 import type {
@@ -55,6 +55,7 @@ function normalizeState(raw: AppState): AppState {
       }
     }),
     removedStudentIds: removedIds(raw.removedStudentIds),
+    revision: revisionOf(raw.revision),
   }
 }
 
@@ -81,6 +82,7 @@ type Store = {
   markFeePaid: (feeId: string) => void
   upsertFee: (fee: FeeRecord) => void
   replaceAllState: (next: AppState) => void
+  clearAllData: () => void
   syncCode: string
   createClubSync: () => Promise<string>
   joinClubSync: (raw: string) => Promise<string>
@@ -118,6 +120,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [syncCode, setSyncCode] = useState('')
   const syncCodeRef = useRef('')
   const skipNextPush = useRef(true)
+  const forceReplace = useRef(false)
 
   function rememberCode(code: string) {
     syncCodeRef.current = code
@@ -198,15 +201,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     const t = window.setTimeout(async () => {
       const code = syncCodeRef.current
+      const replace = forceReplace.current
+      forceReplace.current = false
       try {
         const res = await fetch('/api/state', {
           method: 'PUT',
           headers: code ? clubHeaders(code) : { 'content-type': 'application/json' },
-          body: JSON.stringify({ state }),
+          body: JSON.stringify({ state, replace }),
         })
         if (res.status === 401) {
           setSyncLabel('Chưa đồng bộ — tạo mã để dùng chung các máy')
           return
+        }
+        if (res.status === 409) {
+          const data = (await res.json()) as { state?: AppState }
+          if (data.state && Array.isArray(data.state.students)) {
+            const next = keepClubState(normalizeState(data.state))
+            skipNextPush.current = true
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+            setState(next)
+          }
+          setSyncLabel('Máy này đang giữ bản cũ. Đã lấy lại dữ liệu trên database.')
+          return
+        }
+        if (res.ok && replace) {
+          const data = (await res.json()) as { state?: AppState }
+          if (data.state && Array.isArray(data.state.students)) {
+            const next = keepClubState(normalizeState(data.state))
+            skipNextPush.current = true
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+            setState(next)
+          }
         }
         setSyncLabel(
           res.ok
@@ -424,10 +449,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const replaceAllState = useCallback((next: AppState) => {
+  async function writeWholeBook(next: AppState) {
     const normalized = keepClubState(normalizeState(next))
-    setState(normalized)
+    const code = syncCodeRef.current
+    try {
+      const res = await fetch('/api/state', {
+        method: 'PUT',
+        headers: code ? clubHeaders(code) : { 'content-type': 'application/json' },
+        body: JSON.stringify({ state: normalized, replace: true }),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { state?: AppState }
+        const saved =
+          data.state && Array.isArray(data.state.students)
+            ? keepClubState(normalizeState(data.state))
+            : normalized
+        skipNextPush.current = true
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved))
+        setState(saved)
+        return true
+      }
+    } catch {
+      /* keep the new copy on this device and retry through the normal save */
+    }
+    forceReplace.current = true
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
+    setState(normalized)
+    return false
+  }
+
+  const replaceAllState = useCallback((next: AppState) => {
+    void writeWholeBook(next).then((ok) => {
+      setSyncLabel(ok ? 'Đã thay toàn bộ dữ liệu trên database' : 'Đã đổi trên máy. Database sẽ cập nhật khi có mạng.')
+    })
+  }, [])
+
+  const clearAllData = useCallback(() => {
+    void writeWholeBook(createInitialState()).then((ok) => {
+      setSyncLabel(ok ? 'Đã xóa dữ liệu trên database' : 'Đã xóa trên máy. Database sẽ xóa khi có mạng.')
+    })
   }, [])
 
   const createClubSync = useCallback(async () => {
@@ -494,6 +554,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markFeePaid,
       upsertFee,
       replaceAllState,
+      clearAllData,
       syncCode,
       createClubSync,
       joinClubSync,
@@ -520,6 +581,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markFeePaid,
       upsertFee,
       replaceAllState,
+      clearAllData,
     ],
   )
 
