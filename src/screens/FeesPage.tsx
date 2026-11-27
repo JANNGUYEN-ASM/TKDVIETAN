@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { BrandHeader } from '../components/BrandHeader'
 import { formatMoney } from '../lib/format'
 import { useStore } from '../store'
-import { EXTRA_FEE_MODES, type FeeMode, type FeeStatus } from '../types'
+import { EXTRA_FEE_MODES, type FeeMode, type FeeRecord, type FeeStatus, type Student } from '../types'
 
 export function FeesPage() {
   const { state, upsertFee, updateSettings, setDefaultFee } = useStore()
@@ -25,9 +25,8 @@ export function FeesPage() {
   const rows = useMemo(() => {
     const fees = state.fees.filter((f) => f.mode === mode && f.period === period)
     const byStudent = new Map(fees.map((f) => [f.studentId, f]))
-    const query = feeQuery.trim().toLowerCase()
     return state.students
-      .filter((s) => !query || s.fullName.toLowerCase().includes(query))
+      .filter((s) => s.status === 'Đang học')
       .slice()
       .sort((a, b) => a.stt - b.stt)
       .map((s) => {
@@ -39,14 +38,24 @@ export function FeesPage() {
             mode,
             period,
             amount: defaultFee,
-            status: s.status === 'Nghỉ học' ? 'Miễn' : 'Chưa thu',
+            status: 'Chưa thu',
           }
         }
         return { student: s, fee }
       })
-  }, [state.students, state.fees, mode, period, defaultFee, feeQuery])
+  }, [state.students, state.fees, mode, period, defaultFee])
 
-  const totals = [...rows.map((r) => r.fee), ...state.fees.filter((f) => !['tháng', 'khóa'].includes(f.mode))].reduce(
+  const query = feeQuery.trim().toLowerCase()
+  const visibleRows = query
+    ? rows.filter((row) => row.student.fullName.toLowerCase().includes(query))
+    : rows
+  const selected = rows.find((row) => row.student.id === openStudentId) ?? null
+
+  const activeIds = new Set(rows.map((row) => row.student.id))
+  const totals = [
+    ...rows.map((r) => r.fee),
+    ...state.fees.filter((f) => !['tháng', 'khóa'].includes(f.mode) && activeIds.has(f.studentId)),
+  ].reduce(
     (acc, fee) => {
       if (fee.status === 'Miễn') return acc
       acc.due += fee.amount
@@ -90,7 +99,7 @@ export function FeesPage() {
     <>
       <BrandHeader subtitle="Học phí" />
       <div className="main-scroll stack">
-        <div className="card stack">
+        {!selected && <div className="card stack">
           <button
             type="button"
             className="row between"
@@ -134,13 +143,13 @@ export function FeesPage() {
                 </label>
               )}
               <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                Bấm tên võ sinh để điền võ phục, dụng cụ và lệ phí thi.
+                Chỉ hiện võ sinh đang học. Bấm tên để xem học phí và các khoản khác.
               </p>
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {!selected && <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           {mode === 'tháng' ? (
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="search" />
           ) : (
@@ -153,9 +162,9 @@ export function FeesPage() {
             value={feeQuery}
             onChange={(e) => setFeeQuery(e.target.value)}
           />
-        </div>
+        </div>}
 
-        <div className="metrics">
+        {!selected && <div className="metrics">
           <div className="metric">
             <div className="value" style={{ fontSize: '0.95rem' }}>
               {formatMoney(totals.due)}
@@ -174,109 +183,163 @@ export function FeesPage() {
             </div>
             <div className="label">Còn nợ</div>
           </div>
-        </div>
+        </div>}
 
-        <div className="card">
-          {rows.length === 0 && <p className="muted">Không có võ sinh trong bộ lọc này.</p>}
-          {rows.map(({ student, fee }) => {
-            const open = openStudentId === student.id
-            return (
-              <div key={student.id}>
-                <div className="fee-line">
-                  <button type="button" className="name" onClick={() => setOpenStudentId(open ? null : student.id)}>
-                    {student.stt}. {student.fullName}
-                    <span className="muted" style={{ display: 'block', fontWeight: 500, fontSize: '0.75rem' }}>
-                      {open ? 'Thu gọn khoản khác' : 'Võ phục, dụng cụ, lệ phí'}
-                    </span>
-                  </button>
-                  {editingAmountId === fee.id ? (
-                    <input
-                      type="number"
-                      autoFocus
-                      defaultValue={fee.amount}
-                      aria-label={`Học phí ${student.fullName}`}
-                      onBlur={(e) => {
-                        saveFee(fee.id, student.id, {
-                          amount: Number(e.target.value) || 0,
-                          status: fee.status,
-                        })
-                        setEditingAmountId(null)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                      }}
-                      style={{ width: 110, border: '1px solid var(--line)', borderRadius: 10, padding: '8px' }}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      style={{ padding: '8px 10px' }}
-                      onClick={() => setEditingAmountId(fee.id)}
-                    >
-                      {fee.status === 'Miễn' ? '—' : formatMoney(fee.amount)}
-                    </button>
-                  )}
-                  <select
-                    value={fee.status}
-                    aria-label={`Trạng thái học phí ${student.fullName}`}
-                    onChange={(e) =>
-                      saveFee(fee.id, student.id, { status: e.target.value as FeeStatus, amount: fee.amount })
-                    }
-                    style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px', fontWeight: 700 }}
-                  >
-                    <option>Chưa thu</option>
-                    <option>Đã thu</option>
-                    <option>Miễn</option>
-                  </select>
-                </div>
-                {open && (
-                  <div className="stack" style={{ padding: '4px 0 12px' }}>
-                    {EXTRA_FEE_MODES.map((extra) => {
-                      const saved = state.fees.find((f) => f.studentId === student.id && f.mode === extra)
-                      const amount = saved?.amount ?? 0
-                      const status = saved?.status ?? 'Chưa thu'
-                      return (
-                        <div key={extra} className="row between" style={{ gap: 8 }}>
-                          <span style={{ minWidth: 120 }}>{extra}</span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={amount}
-                            aria-label={`${extra} ${student.fullName}`}
-                            onChange={(e) =>
-                              saveExtra(student.id, extra, {
-                                amount: Number(e.target.value) || 0,
-                                status,
-                              })
-                            }
-                            style={{ width: 110, border: '1px solid var(--line)', borderRadius: 10, padding: '8px' }}
-                          />
-                          <select
-                            value={status}
-                            aria-label={`Trạng thái ${extra} ${student.fullName}`}
-                            onChange={(e) =>
-                              saveExtra(student.id, extra, {
-                                amount,
-                                status: e.target.value as FeeStatus,
-                              })
-                            }
-                            style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px', fontWeight: 700 }}
-                          >
-                            <option>Chưa thu</option>
-                            <option>Đã thu</option>
-                            <option>Miễn</option>
-                          </select>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        {selected ? (
+          <StudentFeeDetail
+            student={selected.student}
+            fee={selected.fee}
+            extras={state.fees.filter((f) => f.studentId === selected.student.id)}
+            editingAmountId={editingAmountId}
+            onBack={() => setOpenStudentId(null)}
+            onEditAmount={() => setEditingAmountId(selected.fee.id)}
+            onSaveAmount={(amount) => {
+              saveFee(selected.fee.id, selected.student.id, { amount, status: selected.fee.status })
+              setEditingAmountId(null)
+            }}
+            onStatus={(status) =>
+              saveFee(selected.fee.id, selected.student.id, { status, amount: selected.fee.amount })
+            }
+            onExtra={(extra, patch) => saveExtra(selected.student.id, extra, patch)}
+          />
+        ) : (
+          <div className="card">
+            {visibleRows.length === 0 && <p className="muted">Không có võ sinh đang học.</p>}
+            {visibleRows.map(({ student, fee }) => (
+              <button
+                key={student.id}
+                type="button"
+                className="fee-line"
+                onClick={() => setOpenStudentId(student.id)}
+                style={{ width: '100%', background: 'transparent', cursor: 'pointer' }}
+              >
+                <span className="name">
+                  {student.stt}. {student.fullName}
+                </span>
+                <span>{fee.status === 'Miễn' ? '—' : formatMoney(fee.amount)}</span>
+                <span className={`chip ${fee.status === 'Đã thu' ? 'chip-green' : 'chip-outline'}`}>{fee.status}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
+  )
+}
+
+function StudentFeeDetail({
+  student,
+  fee,
+  extras,
+  editingAmountId,
+  onBack,
+  onEditAmount,
+  onSaveAmount,
+  onStatus,
+  onExtra,
+}: {
+  student: Student
+  fee: FeeRecord
+  extras: FeeRecord[]
+  editingAmountId: string | null
+  onBack: () => void
+  onEditAmount: () => void
+  onSaveAmount: (amount: number) => void
+  onStatus: (status: FeeStatus) => void
+  onExtra: (extra: (typeof EXTRA_FEE_MODES)[number], patch: { amount?: number; status?: FeeStatus }) => void
+}) {
+  return (
+    <div className="card stack">
+      <button type="button" className="btn btn-ghost" onClick={onBack}>
+        ← Danh sách
+      </button>
+      <h3 style={{ margin: 0 }}>
+        {student.stt}. {student.fullName}
+      </h3>
+      <FeeEditor
+        label="Học phí"
+        amount={fee.amount}
+        status={fee.status}
+        editing={editingAmountId === fee.id}
+        onEdit={onEditAmount}
+        onSaveAmount={onSaveAmount}
+        onStatus={onStatus}
+      />
+      {EXTRA_FEE_MODES.map((extra) => {
+        const saved = extras.find((item) => item.mode === extra)
+        return (
+          <FeeEditor
+            key={extra}
+            label={extra}
+            amount={saved?.amount ?? 0}
+            status={saved?.status ?? 'Chưa thu'}
+            editing={false}
+            onSaveAmount={(amount) => onExtra(extra, { amount, status: saved?.status ?? 'Chưa thu' })}
+            onStatus={(status) => onExtra(extra, { amount: saved?.amount ?? 0, status })}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function FeeEditor({
+  label,
+  amount,
+  status,
+  editing,
+  onEdit,
+  onSaveAmount,
+  onStatus,
+}: {
+  label: string
+  amount: number
+  status: FeeStatus
+  editing?: boolean
+  onEdit?: () => void
+  onSaveAmount: (amount: number) => void
+  onStatus: (status: FeeStatus) => void
+}) {
+  const tuition = label === 'Học phí'
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <span style={{ fontWeight: 700 }}>{label}</span>
+      <div className="row" style={{ gap: 8 }}>
+        {tuition && !editing ? (
+          <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onEdit}>
+            {status === 'Miễn' ? '—' : formatMoney(amount)}
+          </button>
+        ) : (
+          <input
+            type="number"
+            min={0}
+            autoFocus={tuition && editing}
+            defaultValue={tuition ? amount : undefined}
+            value={tuition ? undefined : amount}
+            aria-label={`Số tiền ${label}`}
+            onBlur={
+              tuition
+                ? (e) => onSaveAmount(Number(e.target.value) || 0)
+                : undefined
+            }
+            onChange={tuition ? undefined : (e) => onSaveAmount(Number(e.target.value) || 0)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+            }}
+            style={{ flex: '1 1 120px', minWidth: 0, border: '1px solid var(--line)', borderRadius: 10, padding: '8px 10px' }}
+          />
+        )}
+        <select
+          value={status}
+          aria-label={`Trạng thái ${label}`}
+          onChange={(e) => onStatus(e.target.value as FeeStatus)}
+          style={{ maxWidth: '48%', border: '1px solid var(--line)', borderRadius: 10, padding: '8px 10px', fontWeight: 700 }}
+        >
+          <option>Chưa thu</option>
+          <option>Đã thu</option>
+          <option>Miễn</option>
+        </select>
+      </div>
+    </div>
   )
 }

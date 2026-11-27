@@ -305,17 +305,18 @@ button {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
-  padding: 8px 0;
+  padding: 10px 0;
+  border: none;
   border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
 }
 
-.fee-line button.name {
-  border: none;
-  background: transparent;
-  text-align: left;
-  font: inherit;
+.fee-line .name {
   font-weight: 700;
-  padding: 0;
   min-width: 0;
 }
 
