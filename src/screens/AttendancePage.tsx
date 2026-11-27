@@ -244,7 +244,7 @@ export function AttendancePage() {
 
           {!isCancelled && session?.kind !== 'makeup' && (
             <button type="button" className="btn btn-ghost btn-block" onClick={() => setCancelOpen((v) => !v)}>
-              Hủy buổi (mưa / có việc…)
+              Hủy buổi
             </button>
           )}
 

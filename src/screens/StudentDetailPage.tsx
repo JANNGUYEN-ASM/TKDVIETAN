@@ -138,7 +138,7 @@ export function StudentDetailPage() {
 
             {missing.length > 0 && (
               <div className="banner banner-warn">
-                Còn thiếu: {missing.join(', ')} — bấm Sửa / Điền để bổ sung.
+                Thiếu: {missing.join(', ')}
               </div>
             )}
 
@@ -229,11 +229,6 @@ export function StudentDetailPage() {
 
         {editing && (
           <form className="card form-grid" onSubmit={onSave}>
-            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-              Điền đủ các ô bên dưới rồi bấm <strong>Lưu</strong>. Ngày chọn trên lịch sẽ hiện dạng
-              DD/MM/YYYY.
-            </p>
-
             <label>
               Mã HV
               <input
@@ -253,10 +248,6 @@ export function StudentDetailPage() {
                 onChange={(e) => patch('maDinhDanh', e.target.value)}
               />
             </label>
-            <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-              Hai mã do liên đoàn cấp. Gõ đúng mã trên giấy tờ, app không tự điền.
-            </p>
-
             <label>
               Họ và tên *
               <input
@@ -302,7 +293,7 @@ export function StudentDetailPage() {
                   <input
                     style={{ flex: 1 }}
                     value={form.gradeDisplay}
-                    placeholder="Lớp 1 từ 6 tuổi, hoặc bấm Tự tính"
+                    placeholder="Lớp"
                     onChange={(e) => patch('gradeDisplay', e.target.value)}
                   />
                   <button

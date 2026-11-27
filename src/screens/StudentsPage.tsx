@@ -105,7 +105,7 @@ export function StudentsPage() {
             style={{ border: 'none', textAlign: 'left', width: '100%' }}
             onClick={() => setFilter('missing')}
           >
-            {missingCount} võ sinh còn thiếu SĐT / địa chỉ / khóa — bấm để lọc và điền.
+            {missingCount} thiếu SĐT / địa chỉ / khóa
           </button>
         )}
 
@@ -182,10 +182,7 @@ export function StudentsPage() {
 
         <div className="card">
           {list.length === 0 && state.students.length === 0 && (
-            <p className="muted">
-              Chưa có võ sinh.{' '}
-              <Link to="/vo-sinh/moi">Thêm mới</Link> hoặc <Link to="/nhap-excel">nhập Excel</Link>.
-            </p>
+            <p className="muted">Chưa có võ sinh.</p>
           )}
           {list.length === 0 && state.students.length > 0 && (
             <p className="muted">Không có võ sinh trong bộ lọc này.</p>

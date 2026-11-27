@@ -14,9 +14,7 @@ export function BackupPage() {
     setError('')
     const name = downloadBackup(state)
     localStorage.setItem('viet-an-last-export', new Date().toISOString())
-    setMessage(
-      `Đã tải ${name}. Gửi Zalo/Drive sang máy kia (không cần cùng Wi‑Fi) → máy kia mở Sao lưu → Nhập file.`,
-    )
+    setMessage(`Đã tải ${name}`)
   }
 
   async function onShare() {
@@ -39,7 +37,7 @@ export function BackupPage() {
           text: 'File dữ liệu CLB TAEKWONDO VIỆT AN',
         })
         localStorage.setItem('viet-an-last-export', new Date().toISOString())
-        setMessage('Đã mở chia sẻ — gửi file (Zalo…) rồi Nhập file trên máy/điện thoại kia.')
+        setMessage('Đã mở chia sẻ')
         return
       }
       onExport()
@@ -57,22 +55,16 @@ export function BackupPage() {
       const json = JSON.parse(text) as unknown
       const next = parseBackup(json)
       if (
-        !confirm(
-          `Nhập file này sẽ THAY toàn bộ dữ liệu trên máy/điện thoại HIỆN TẠI bằng ${next.students.length} võ sinh. Tiếp tục?`,
-        )
+        !confirm(`Nhập ${next.students.length} võ sinh và thay dữ liệu hiện tại?`)
       ) {
         return
       }
       replaceAllState(next)
-      setMessage(
-        `Đã nhập xong: ${next.students.length} võ sinh, ${next.sessions.length} buổi, ${next.fees.length} khoản phí. Dữ liệu cũ trên database được thay bằng file này.`,
-      )
+      setMessage(`Đã nhập ${next.students.length} võ sinh`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không đọc được file')
     }
   }
-
-  const lastExport = localStorage.getItem('viet-an-last-export')
 
   return (
     <>
@@ -83,21 +75,16 @@ export function BackupPage() {
         </Link>
 
         <div className="card stack">
-          <h3 style={{ margin: 0 }}>Xóa hết để làm lại</h3>
-          <p className="muted" style={{ margin: 0 }}>
-            File sao lưu đang nằm trên máy của bạn thì vẫn còn. Nút này chỉ xóa danh sách, điểm danh và học phí trong app và trên database.
-          </p>
+          <h3 style={{ margin: 0 }}>Xóa hết</h3>
           <button
             type="button"
             className="btn btn-ghost btn-block"
             onClick={() => {
-              const ok = window.confirm(
-                'Xóa hết võ sinh, điểm danh và học phí trên máy này và trên database? File đã tải về máy vẫn còn. Không hoàn tác.',
-              )
+              const ok = window.confirm('Xóa hết võ sinh, điểm danh và học phí?')
               if (!ok) return
               clearAllData()
               setError('')
-              setMessage('Đang xóa. Khi dòng trạng thái trên cùng hiện “Đã xóa dữ liệu trên database”, có thể nhập file mới ở mục bên dưới hoặc thêm võ sinh từ đầu.')
+              setMessage('Đã xóa')
             }}
           >
             Xóa hết dữ liệu
@@ -105,18 +92,9 @@ export function BackupPage() {
         </div>
 
         <div className="card stack">
-          <h3 style={{ margin: 0 }}>1. Xuất từ máy / phone đang cầm</h3>
+          <h3 style={{ margin: 0 }}>Xuất</h3>
           <p className="muted" style={{ margin: 0 }}>
-            Đang có <strong>{state.students.length}</strong> võ sinh ·{' '}
-            <strong>{state.sessions.length}</strong> buổi · <strong>{state.fees.length}</strong> học phí.
-            {lastExport ? (
-              <>
-                {' '}
-                Lần xuất gần nhất: {new Date(lastExport).toLocaleString('vi-VN')}
-              </>
-            ) : (
-              <> Chưa xuất file lần nào trên trình duyệt này.</>
-            )}
+            {state.students.length} võ sinh · {state.sessions.length} buổi · {state.fees.length} học phí
           </p>
           <button type="button" className="btn btn-primary btn-block" onClick={onShare}>
             Chia sẻ file qua Zalo / Drive…
@@ -134,10 +112,7 @@ export function BackupPage() {
         </div>
 
         <div className="card stack">
-          <h3 style={{ margin: 0 }}>2. Nhập trên máy kia</h3>
-          <p className="muted" style={{ margin: 0 }}>
-            Không cần cùng Wi‑Fi. Chỉ cần nhận được file và chọn ở đây.
-          </p>
+          <h3 style={{ margin: 0 }}>Nhập</h3>
           <label className="btn btn-navy btn-block" style={{ cursor: 'pointer' }}>
             Chọn file .json để nhập
             <input
@@ -151,10 +126,6 @@ export function BackupPage() {
 
         {message && <div className="banner banner-info">{message}</div>}
         {error && <div className="banner banner-warn">{error}</div>}
-
-        <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-          Máy khác đang mở app thì tải lại trang sau khi xóa, để không ghi dữ liệu cũ trở lại.
-        </p>
       </div>
     </>
   )

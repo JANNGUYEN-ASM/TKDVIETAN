@@ -90,12 +90,6 @@ export function ReportPage() {
           </div>
         </div>
 
-        {!isAn && (
-          <div className="banner banner-info">
-            HLV chỉ xem chuyên cần & sĩ số (không thấy doanh thu) — giả định phân quyền
-          </div>
-        )}
-
         <Link to="/sao-luu" className="btn btn-primary btn-block">
           Sao lưu / chuyển dữ liệu sang máy khác
         </Link>

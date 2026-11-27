@@ -160,11 +160,6 @@ export function FeesPage() {
                   />
                 </label>
               )}
-              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                Tháng {formatMoney(state.settings.defaultFee)}. Hai anh em {formatMoney(SIBLING_MONTH_FEE)}/tháng, ghi một
-                lần và người còn lại chọn Miễn. Quý {formatMoney(state.settings.defaultQuarterFee)}. Lệ phí thi bốn lần
-                một năm, mở trong hồ sơ võ sinh. Võ phục điền khi có người mua thêm.
-              </p>
             </div>
           )}
         </div>}
@@ -322,7 +317,7 @@ function StudentFeeDetail({
         return (
           <FeeEditor
             key={extra}
-            label={extra === 'võ phục' ? 'võ phục (mua thêm thì điền)' : extra}
+            label={extra}
             amount={saved?.amount ?? 0}
             status={saved?.status ?? 'Chưa thu'}
             editing={false}

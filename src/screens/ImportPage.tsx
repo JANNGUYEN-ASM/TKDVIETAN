@@ -67,10 +67,6 @@ export function ImportPage() {
               <strong>{fileName}</strong> — đã tải
             </p>
           )}
-          <div className="banner banner-info">
-            Trình độ: nếu tuổi &gt; 12 (năm nay − năm sinh) → Đi làm. File có cột Trình độ thì giữ chữ
-            trên file khi nhập.
-          </div>
           {error && <div className="banner banner-warn">{error}</div>}
         </div>
 

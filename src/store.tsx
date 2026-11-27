@@ -148,7 +148,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const res = await fetch('/api/state', { cache: 'no-store', headers })
         if (cancelled) return
         if (res.status === 401) {
-          setSyncLabel('Chưa đồng bộ — tạo mã để dùng chung các máy')
+          setSyncLabel('Chưa đồng bộ')
           return
         }
         if (res.status === 404) {
@@ -216,7 +216,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ state, replace }),
         })
         if (res.status === 401) {
-          setSyncLabel('Chưa đồng bộ — tạo mã để dùng chung các máy')
+          setSyncLabel('Chưa đồng bộ')
           return
         }
         if (res.status === 409) {
@@ -227,7 +227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
             setState(next)
           }
-          setSyncLabel('Máy này đang giữ bản cũ. Đã lấy lại dữ liệu trên database.')
+          setSyncLabel('Đã lấy dữ liệu mới')
           return
         }
         if (res.ok && replace) {
@@ -242,10 +242,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncLabel(
           res.ok
             ? `Đã lưu database · ${new Date().toLocaleTimeString('vi-VN')}`
-            : 'Lưu database lỗi — vẫn giữ trên máy',
+            : 'Lưu lỗi',
         )
       } catch {
-        setSyncLabel('Lưu database lỗi — vẫn giữ trên máy')
+        setSyncLabel('Lưu lỗi')
       }
     }, 700)
     return () => window.clearTimeout(t)
@@ -501,13 +501,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const replaceAllState = useCallback((next: AppState) => {
     void writeWholeBook(next).then((ok) => {
-      setSyncLabel(ok ? 'Đã thay toàn bộ dữ liệu trên database' : 'Đã đổi trên máy. Database sẽ cập nhật khi có mạng.')
+      setSyncLabel(ok ? 'Đã nhập' : 'Đã đổi trên máy')
     })
   }, [])
 
   const clearAllData = useCallback(() => {
     void writeWholeBook(createInitialState()).then((ok) => {
-      setSyncLabel(ok ? 'Đã xóa dữ liệu trên database' : 'Đã xóa trên máy. Database sẽ xóa khi có mạng.')
+      setSyncLabel(ok ? 'Đã xóa' : 'Đã xóa trên máy')
     })
   }, [])
 
@@ -524,7 +524,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncLabel('Chưa lưu được database')
         return ''
       }
-      setSyncLabel('Đã lưu database. Nhập mã này trên máy kia.')
+      setSyncLabel('Đã lưu database')
       return code
     } catch {
       setSyncLabel('Chưa lưu được database')

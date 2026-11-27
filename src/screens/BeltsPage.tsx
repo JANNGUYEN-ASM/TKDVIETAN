@@ -42,7 +42,7 @@ export function BeltsPage() {
       pickedReady.length > 6
         ? `${pickedReady.length} võ sinh`
         : pickedReady.map((row) => row.student.fullName).join(', ')
-    const ok = window.confirm(`Thăng 1 cấp cho ${names}? Đai mới đồng bộ theo mã đang dùng.`)
+    const ok = window.confirm(`Thăng 1 cấp cho ${names}?`)
     if (!ok) return
     promoteBelts(pickedReady.map((row) => row.student.id))
     setPicked([])
@@ -52,13 +52,6 @@ export function BeltsPage() {
     <>
       <BrandHeader subtitle="Cấp đai" />
       <div className="main-scroll stack">
-        <div className="banner banner-warn">Dữ liệu CLB — không phải chứng chỉ liên đoàn</div>
-        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Thi từ 6 tuổi, tuổi tính theo năm. Chọn người đã học bài thi rồi bấm thăng 1 cấp. Vắng và có phép chỉ để
-          xem chuyên cần, không chặn thăng đai. Đai mới nằm trong hồ sơ nên máy đang dùng chung mã đồng bộ sẽ nhận cùng
-          một bản.
-        </p>
-
         <div className="card">
           <div className="row between" style={{ gap: 8, alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>Sau kỳ thi</h3>
@@ -75,7 +68,7 @@ export function BeltsPage() {
               {pickedReady.length === ready.length && ready.length > 0 ? 'Bỏ chọn' : 'Chọn tất cả'}
             </button>
           </div>
-          {ready.length === 0 && <p className="muted">Chưa có võ sinh từ 6 tuổi để thăng cấp.</p>}
+          {ready.length === 0 && <p className="muted">Không có võ sinh để thăng cấp.</p>}
           {ready.map((row) => {
             const on = picked.includes(row.student.id)
             const marks = row.attendance
@@ -101,9 +94,11 @@ export function BeltsPage() {
                     <span className="muted" style={{ display: 'block', marginTop: 4 }}>
                       {row.age} tuổi · {row.student.belt} → {row.toBelt}
                     </span>
-                    <span className="muted" style={{ display: 'block', marginTop: 4 }}>
-                      Có mặt {marks.present} · Trễ {marks.late} · Vắng {marks.absent} · Có phép {marks.excused}
-                    </span>
+                    {marks.present + marks.late + marks.absent + marks.excused > 0 && (
+                      <span className="muted" style={{ display: 'block', marginTop: 4 }}>
+                        Có mặt {marks.present} · Trễ {marks.late} · Vắng {marks.absent} · Có phép {marks.excused}
+                      </span>
+                    )}
                   </span>
                 </span>
               </label>
@@ -127,7 +122,7 @@ export function BeltsPage() {
 
         {missingAge.length > 0 && (
           <p className="muted" style={{ margin: 0 }}>
-            Chưa có năm sinh, chưa đưa vào danh sách thi: {missingAge.map((row) => row.student.fullName).join(', ')}
+            Chưa có năm sinh: {missingAge.map((row) => row.student.fullName).join(', ')}
           </p>
         )}
       </div>
