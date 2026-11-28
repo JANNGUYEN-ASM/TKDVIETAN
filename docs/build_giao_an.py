@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build CLB Việt An color-belt lesson plan Word document."""
+"""Build CLB Việt An color-belt lesson plan — mẫu giáo án thể dục VN."""
 
 from pathlib import Path
 
@@ -10,11 +10,7 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 OUT = Path(__file__).with_name("Giao-an-CLB-Viet-An-Cap-10-den-Cap-1.docx")
-
-HEADER_FILL = "1F4E79"
-NOTE_FILL = "FFF2CC"
-HOME_FILL = "E8F5E9"
-META_FILL = "F3F6FA"
+HEADER_FILL = "D9D9D9"  # xám nhạt — kiểu giáo án in
 
 
 def set_run_font(run, size=11, bold=False, color=None):
@@ -38,7 +34,7 @@ def shade_cell(cell, hex_color):
     tc_pr.append(shd)
 
 
-def set_cell_margins(cell, top=40, bottom=40, left=60, right=60):
+def set_cell_margins(cell, top=50, bottom=50, left=60, right=60):
     tc = cell._tc
     tc_pr = tc.get_or_add_tcPr()
     tc_mar = OxmlElement("w:tcMar")
@@ -56,12 +52,12 @@ def clear_cell(cell):
         p._element.getparent().remove(p._element)
 
 
-def write_cell(cell, text, *, bold=False, size=10, center=False):
+def write_cell(cell, text, *, bold=False, size=11, center=False):
     clear_cell(cell)
     p = cell.paragraphs[0]
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(0)
-    p.paragraph_format.line_spacing = 1.1
+    p.paragraph_format.line_spacing = 1.15
     if center:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run(str(text))
@@ -69,7 +65,7 @@ def write_cell(cell, text, *, bold=False, size=10, center=False):
     set_cell_margins(cell)
 
 
-def add_p(doc, text, *, bold=False, size=11, space_after=6, space_before=0, align=None, color=None):
+def add_p(doc, text, *, bold=False, size=11, space_after=6, space_before=0, align=None):
     p = doc.add_paragraph()
     if align is not None:
         p.alignment = align
@@ -77,46 +73,27 @@ def add_p(doc, text, *, bold=False, size=11, space_after=6, space_before=0, alig
     p.paragraph_format.space_before = Pt(space_before)
     p.paragraph_format.line_spacing = 1.2
     run = p.add_run(text)
-    set_run_font(run, size=size, bold=bold, color=color)
+    set_run_font(run, size=size, bold=bold)
     return p
-
-
-def add_note(doc, text, label="Lưu ý"):
-    table = doc.add_table(rows=1, cols=1)
-    table.style = "Table Grid"
-    cell = table.rows[0].cells[0]
-    shade_cell(cell, NOTE_FILL)
-    clear_cell(cell)
-    p = cell.paragraphs[0]
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
-    r1 = p.add_run(f"{label}: ")
-    set_run_font(r1, size=10, bold=True)
-    r2 = p.add_run(text)
-    set_run_font(r2, size=10)
-    set_cell_margins(cell, top=60, bottom=60, left=80, right=80)
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
 
 def add_h(doc, text, level=1):
     h = doc.add_heading(text, level=level)
-    sizes = {1: 16, 2: 13, 3: 12}
-    spaces_before = {1: 14, 2: 12, 3: 10}
-    spaces_after = {1: 8, 2: 6, 3: 4}
-    h.paragraph_format.space_before = Pt(spaces_before[level])
-    h.paragraph_format.space_after = Pt(spaces_after[level])
+    sizes = {1: 14, 2: 12, 3: 11}
+    h.paragraph_format.space_before = Pt(12 if level == 1 else 8)
+    h.paragraph_format.space_after = Pt(6 if level == 1 else 4)
     for run in h.runs:
-        set_run_font(run, size=sizes[level], bold=True, color=RGBColor(0x1F, 0x4E, 0x79))
+        set_run_font(run, size=sizes[level], bold=True)
     return h
 
 
-def add_bullets(doc, items):
+def add_bullets(doc, items, size=11):
     for item in items:
         p = doc.add_paragraph(style="List Bullet")
-        p.paragraph_format.space_after = Pt(3)
+        p.paragraph_format.space_after = Pt(2)
         p.paragraph_format.space_before = Pt(0)
         run = p.add_run(item)
-        set_run_font(run, size=11)
+        set_run_font(run, size=size)
 
 
 def set_col_widths(table, widths_cm):
@@ -126,90 +103,55 @@ def set_col_widths(table, widths_cm):
                 row.cells[idx].width = Cm(width)
 
 
-def add_table(doc, headers, rows, col_widths=None, zebra=True):
+def add_table(doc, headers, rows, col_widths=None):
     table = doc.add_table(rows=1 + len(rows), cols=len(headers))
     table.style = "Table Grid"
     table.autofit = False
     for i, h in enumerate(headers):
         cell = table.rows[0].cells[i]
-        write_cell(cell, h, bold=True, size=10, center=True)
+        write_cell(cell, h, bold=True, size=11, center=True)
         shade_cell(cell, HEADER_FILL)
-        for p in cell.paragraphs:
-            for run in p.runs:
-                run.font.color.rgb = RGBColor(255, 255, 255)
     for r_i, row in enumerate(rows):
         for c_i, val in enumerate(row):
-            cell = table.rows[r_i + 1].cells[c_i]
-            write_cell(cell, val, size=10)
-            if zebra and r_i % 2 == 1:
-                shade_cell(cell, "F7F9FC")
+            write_cell(table.rows[r_i + 1].cells[c_i], val, size=11)
     if col_widths:
         set_col_widths(table, col_widths)
     spacer = doc.add_paragraph()
-    spacer.paragraph_format.space_after = Pt(8)
+    spacer.paragraph_format.space_after = Pt(6)
     return table
 
 
-def add_week_table(doc, day_a, day_b, day_c):
-    """One readable table for all three training days."""
-    rows = []
-    for label, blocks in (("A", day_a), ("B", day_b), ("C", day_c)):
-        for i, (gio, phut, viec) in enumerate(blocks):
-            rows.append([label if i == 0 else "", gio, phut, viec])
-    table = add_table(
+def pp_for(text: str) -> str:
+    t = text.lower()
+    if "thi thử" in t or "phiếu" in t:
+        return "Làm theo phiếu. Trợ giảng ghi đạt/chưa."
+    if "đích" in t or "cặp" in t or "đổi vai" in t:
+        return "Chia cặp. Một em giữ đích, một em tập; đổi vai. HLV sửa sai."
+    if "bảo hộ" in t or "hiệp" in t or "song đấu" in t or "spar" in t:
+        return "Đủ bảo hộ. HLV hô luật; kallyeo khi sai."
+    if "mẫu" in t or "động tác" in t or "taegeuk" in t or "đếm" in t or "quyền" in t:
+        return "HLV làm mẫu → hô nhịp → HS tập → sửa sai."
+    if "gọi tên" in t or "lệnh" in t:
+        return "HLV hô lệnh. Sai thì làm lại cả hàng/nhóm."
+    return "HLV hô lệnh, quan sát sửa sai. Tập theo hàng hoặc nhóm."
+
+
+def add_tien_trinh(doc, rows, col_widths=None):
+    """Bảng tiến trình lên lớp kiểu giáo án thể dục VN."""
+    return add_table(
         doc,
-        ["Ngày", "Giờ", "Phút", "Việc làm trên nhóm"],
+        ["Thời gian", "Nội dung", "Phương pháp tổ chức"],
         rows,
-        col_widths=[1.4, 2.6, 1.3, 11.5],
-        zebra=False,
+        col_widths=col_widths or [2.8, 8.2, 5.8],
     )
-    # tint day label cells
-    colors = {"A": "D6EAF8", "B": "D5F5E3", "C": "FCF3CF"}
-    current = None
-    for row in table.rows[1:]:
-        day = row.cells[0].text.strip()
-        if day:
-            current = day
-        fill = colors.get(current, "FFFFFF")
-        for cell in row.cells:
-            shade_cell(cell, fill)
-        if day:
-            write_cell(row.cells[0], day, bold=True, size=11, center=True)
-            shade_cell(row.cells[0], fill)
-    return table
 
 
-def add_toc(doc):
-    add_h(doc, "Mục lục", 1)
-    add_p(
-        doc,
-        "Trong Word: bấm chuột phải vào khung mục lục bên dưới → Update Field / Cập nhật trường "
-        "(hoặc Ctrl+A rồi F9) để hiện số trang.",
-        size=9,
-        color=RGBColor(0x66, 0x66, 0x66),
-    )
-    p = doc.add_paragraph()
-    run = p.add_run()
-    fld_begin = OxmlElement("w:fldChar")
-    fld_begin.set(qn("w:fldCharType"), "begin")
-    instr = OxmlElement("w:instrText")
-    instr.set(qn("xml:space"), "preserve")
-    instr.text = ' TOC \\o "1-2" \\h \\z \\u '
-    fld_sep = OxmlElement("w:fldChar")
-    fld_sep.set(qn("w:fldCharType"), "separate")
-    placeholder = OxmlElement("w:r")
-    t = OxmlElement("w:t")
-    t.text = "Đang tải mục lục… Hãy cập nhật trường trong Word."
-    placeholder.append(t)
-    fld_end = OxmlElement("w:fldChar")
-    fld_end.set(qn("w:fldCharType"), "end")
-    run._r.append(fld_begin)
-    run._r.append(instr)
-    run._r.append(fld_sep)
-    p._p.append(placeholder)
-    run2 = p.add_run()
-    run2._r.append(fld_end)
-    doc.add_paragraph()
+def add_day_detail(doc, day_name, blocks):
+    add_p(doc, day_name, bold=True, size=11, space_before=6, space_after=3)
+    rows = []
+    for gio, phut, viec in blocks:
+        rows.append([f"{gio}\n({phut}')", viec, pp_for(viec)])
+    add_tien_trinh(doc, rows)
 
 
 def add_page_numbers(doc):
@@ -218,9 +160,8 @@ def add_page_numbers(doc):
         footer.is_linked_to_previous = False
         p = footer.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run("CLB Việt An · Giáo án cấp 10–1 · Trang ")
-        set_run_font(run, size=9, color=RGBColor(0x66, 0x66, 0x66))
-        # PAGE field
+        run = p.add_run("CLB Việt An – Giáo án thăng cấp – Trang ")
+        set_run_font(run, size=9)
         fld = p.add_run()
         begin = OxmlElement("w:fldChar")
         begin.set(qn("w:fldCharType"), "begin")
@@ -235,6 +176,7 @@ def add_page_numbers(doc):
         fld._r.append(sep)
         fld._r.append(end)
         set_run_font(fld, size=9)
+
 
 
 BELTS = []
@@ -1379,215 +1321,229 @@ belt(
 )
 
 
+
 def build():
     doc = Document()
     for section in doc.sections:
-        section.top_margin = Cm(1.8)
-        section.bottom_margin = Cm(1.8)
-        section.left_margin = Cm(1.8)
-        section.right_margin = Cm(1.8)
+        section.top_margin = Cm(2)
+        section.bottom_margin = Cm(2)
+        section.left_margin = Cm(2)
+        section.right_margin = Cm(2)
     add_page_numbers(doc)
 
-    add_p(doc, "CLB TAEKWONDO VIỆT AN", bold=True, size=14, align=WD_ALIGN_PARAGRAPH.CENTER)
-    add_p(doc, "GIÁO ÁN THĂNG CẤP ĐAI MÀU", bold=True, size=18, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x1F, 0x4E, 0x79))
-    add_p(doc, "Cấp 10 → Cấp 1  ·  Theo QĐ 152/2025/QĐ-VTF", bold=True, size=12, align=WD_ALIGN_PARAGRAPH.CENTER)
+    # ===== BÌA =====
+    add_p(doc, "CLB TAEKWONDO VIỆT AN", bold=True, size=14, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=24)
+    add_p(doc, "GIÁO ÁN THĂNG CẤP ĐAI MÀU", bold=True, size=16, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=8)
+    add_p(doc, "Cấp 10 → Cấp 1", bold=True, size=13, align=WD_ALIGN_PARAGRAPH.CENTER)
+    add_p(doc, "(Theo Quyết định 152/2025/QĐ-VTF)", size=11, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=12)
+    add_p(doc, "Đối tượng: võ sinh 6–15 tuổi (dưới 6 tuổi tập theo nội dung cấp 10)", size=11, align=WD_ALIGN_PARAGRAPH.CENTER)
+    add_p(doc, "Thời lượng: 3 buổi/tuần × 90 phút (18:00–19:30)", size=11, align=WD_ALIGN_PARAGRAPH.CENTER)
+    add_p(doc, "Hình thức: 1 sàn nhiều đai → chia nhóm/trạm", size=11, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
     add_p(
         doc,
-        "Dùng cho HLV trên sàn và phụ huynh/võ sinh theo dõi. Bản Word để chỉnh sửa.",
-        size=11,
+        "Cách trình bày theo mẫu giáo án thể dục phổ biến: I. Mục tiêu – II. Địa điểm, phương tiện – III. Tiến trình lên lớp (Thời gian | Nội dung | Phương pháp tổ chức).",
+        size=10,
         align=WD_ALIGN_PARAGRAPH.CENTER,
-        space_after=10,
+        space_after=18,
     )
 
-    add_table(
-        doc,
-        ["Hạng mục", "Đã chốt cho Việt An"],
-        [
-            ["Lịch tuần", "3 buổi × 90 phút"],
-            ["Khung giờ mẫu", "18:00–19:30 (khởi động chung ~18:05–18:25, kéo được đến 18:30)"],
-            ["Sàn", "Nhiều đai học chung → chia trạm A/B/C/D"],
-            ["Tuổi", "Chính 6–15 tuổi; dưới 6 tập nội dung cấp 10, chưa thi"],
-            ["Nhánh đai", "Trắng → vàng → xanh lá → xanh dương → đỏ (± vạch) như app"],
-            ["Quyền số 1", "Taegeuk 1 dạy từ cấp 8, thi lên cấp 7"],
-            ["Ưu tiên", "Thi cấp (bắt buộc) + thể lực + nhào lộn + song đấu"],
-            ["Dụng cụ", "Đủ đích, thảm, bảo hộ cơ bản"],
-        ],
-        col_widths=[3.5, 13.3],
-    )
-
-    add_toc(doc)
     doc.add_page_break()
 
-    add_h(doc, "1. Cách dùng giáo án", 1)
+    # ===== PHẦN A =====
+    add_h(doc, "PHẦN A. QUY ĐỊNH CHUNG", 1)
+
+    add_h(doc, "A1. Cách dùng", 2)
     add_bullets(
         doc,
         [
-            "HLV: mở đúng chương cấp đang dạy. Bảng tuần đã gộp Ngày A/B/C — màu xanh dương / xanh lá / vàng để phân buổi.",
-            "Phụ huynh/võ sinh: xem mục tiêu tuần, dòng “Ở nhà”, và checklist trước kỳ thi.",
-            "Tuần 1–10 học mới · Tuần 11 thi thử đúng phiếu · Tuần 12 chỉ sửa lỗi, không thêm đòn.",
-            "Đậu theo QĐ 152: trung bình ≥ 70; vẫn rớt nếu 2/3 giám khảo cho dưới 70.",
+            "Mỗi buổi đều làm theo giáo án khung ở A2 (mở đầu – cơ bản – kết thúc).",
+            "Phần cơ bản (18:25–19:05): mở đúng chương cấp của nhóm/trạm mình phụ trách.",
+            "Tuần 1–10: học mới. Tuần 11: thi thử. Tuần 12: chỉ sửa lỗi, không thêm đòn mới.",
+            "Đậu theo QĐ 152: điểm trung bình ≥ 70; vẫn rớt nếu 2/3 giám khảo cho dưới 70.",
         ],
     )
 
-    add_h(doc, "2. Khung 1 buổi 90 phút (cả sàn)", 1)
-    add_table(
+    add_h(doc, "A2. Giáo án khung một buổi 90 phút", 2)
+    add_p(doc, "I. Mục tiêu buổi", bold=True, space_after=2)
+    add_bullets(
         doc,
-        ["Giờ", "Phút", "Nội dung", "Ai"],
         [
-            ["18:00–18:05", "5", "Xếp hàng theo đai, chào cờ, chào sabeomnim, điểm danh", "Cả sàn"],
-            ["18:05–18:25", "20", "Khởi động chung (kéo đến 18:30 nếu cần). Xem mục 3.", "Cả sàn"],
-            ["18:25–19:05", "40", "Chia trạm. Kỹ thuật + quyền + phân thế theo cấp.", "Theo nhóm"],
-            ["19:05–19:20", "15", "Thể lực + nhào lộn + song đấu/drill theo tầng (mục 5).", "Cả sàn"],
-            ["19:20–19:30", "10", "Giãn tĩnh, giao 1 việc ở nhà, chào, nhắc thi/phiếu tháng nếu đến hạn", "Cả sàn"],
+            "Ổn định tổ chức, khởi động an toàn.",
+            "Luyện kỹ thuật/quyền/đối luyện đúng cấp đang đeo.",
+            "Thể lực – nhào lộn – song đấu/drill theo tầng đai.",
         ],
-        col_widths=[3.2, 1.4, 9.5, 2.7],
+        size=11,
     )
-    add_note(
+    add_p(doc, "II. Địa điểm – Phương tiện", bold=True, space_before=6, space_after=2)
+    add_bullets(
         doc,
-        "Nếu khởi động kéo đến 18:30: cắt kỹ thuật còn 35 phút hoặc cắt 5 phút block 19:05. Không cắt chào và giãn.",
-    )
-
-    add_h(doc, "3. Khởi động chung 18:05–18:25", 1)
-    add_table(
-        doc,
-        ["Phút trong block", "Việc"],
         [
-            ["0–2", "Chạy quanh sàn / high knees / butt kicks nhẹ"],
-            ["2–6", "Xoay cổ chân, gối, hông, vai, cổ tay — 8 vòng mỗi phía"],
-            ["6–10", "Vung chân trước–sau và ngang 8 lần/chân; xoay hông"],
-            ["10–14", "Đá lỏng ap chagi + dollyeo tầm thấp 10/chân (cấp chưa học dollyeo thì chỉ ap)"],
-            ["14–18", "Di chuyển 4 hướng: tiến–lùi–trái–phải theo hàng"],
-            ["18–20", "Uống nước 30–45 giây; HLV phân trạm và giao trợ giảng"],
+            "Địa điểm: sàn tập CLB Việt An, vệ sinh, có thảm nhào lộn.",
+            "Phương tiện: đích cầm tay, bảo hộ (răng, ống chân, cẳng tay, giáp), còi, đồng hồ.",
         ],
-        col_widths=[3.5, 13.3],
     )
-    add_note(doc, "Chưa ngồi giữ giãn sâu khi cơ còn nguội. Giãn tĩnh để phút 19:20.")
+    add_p(doc, "III. Tiến trình lên lớp", bold=True, space_before=6, space_after=4)
+    add_tien_trinh(
+        doc,
+        [
+            [
+                "18:00–18:05\n(5')",
+                "PHẦN MỞ ĐẦU\n- Xếp hàng theo đai\n- Chào cờ, chào sabeomnim\n- Điểm danh, phổ biến nội dung buổi",
+                "Đội hình hàng ngang.\nHLV nhận lớp, hỏi sức khỏe.",
+            ],
+            [
+                "18:05–18:25\n(20')\n(kéo được đến 18:30)",
+                "Khởi động chung\n- Chạy nhẹ / high knees\n- Xoay khớp cổ chân, gối, hông, vai\n- Vung chân; đá lỏng tầm thấp\n- Di chuyển 4 hướng\n- Uống nước, phân trạm",
+                "Cả sàn.\nCSL/HLV hô nhịp.\nChưa giãn tĩnh khi cơ còn nguội.",
+            ],
+            [
+                "18:25–19:05\n(40')",
+                "PHẦN CƠ BẢN\n- Chia trạm A/B/C/D theo đai\n- Tập đúng giáo án cấp (mục B)\n- HLV/trợ giảng sửa sai tại trạm",
+                "Mỗi trạm có người phụ trách.\nHLV chính quay vòng các trạm.",
+            ],
+            [
+                "19:05–19:20\n(15')",
+                "Thể lực / nhào lộn / song đấu\n- Theo tầng đai (bảng A3)\n- Nhấn mạnh an toàn",
+                "Chia tầng trên cùng sàn.\nCó thảm khi nhào lộn.",
+            ],
+            [
+                "19:20–19:30\n(10')",
+                "PHẦN KẾT THÚC\n- Giãn tĩnh\n- Nhận xét buổi\n- Giao 1 việc ở nhà\n- Chào, giải tán",
+                "Đội hình hàng ngang.\nHLV dặn ngắn, rõ.",
+            ],
+        ],
+    )
+    add_p(
+        doc,
+        "Lưu ý: Nếu khởi động kéo đến 18:30 thì rút phần cơ bản còn 35' hoặc rút 5' block 19:05. Không cắt chào và giãn.",
+        size=10,
+        space_after=8,
+    )
 
-    add_h(doc, "4. Chia nhóm trên 1 sàn", 1)
+    add_h(doc, "A3. Chia trạm và nội dung 19:05–19:20", 2)
     add_table(
         doc,
-        ["Trạm", "Đai", "Ưu tiên 40 phút kỹ thuật"],
+        ["Trạm", "Đai", "Ưu tiên phần cơ bản"],
         [
             ["A", "Cấp 10 (+ dưới 6 tuổi), Cấp 9", "Tấn, đấm, đỡ, đá đích, thuật ngữ"],
-            ["B", "Cấp 8, Cấp 7 (vàng)", "Taegeuk 1–2, phân thế, tự vệ cơ bản (cấp 8)"],
-            ["C", "Cấp 6 (xanh lá), Cấp 5 (xanh dương)", "Taegeuk 3–4, yeop chagi, 3 kiểu phát lực, spar 30 giây"],
-            ["D", "Cấp 4–1 (đỏ ± vạch)", "Taegeuk 5–7, dwi chagi, spar 45–60 giây"],
+            ["B", "Cấp 8, Cấp 7 (vàng)", "Taegeuk 1–2, phân thế, tự vệ cơ bản"],
+            ["C", "Cấp 6 (xanh lá), Cấp 5 (xanh dương)", "Taegeuk 3–4, yeop chagi, spar 30\""],
+            ["D", "Cấp 4–1 (đỏ ± vạch)", "Taegeuk 5–7, dwi chagi, spar 45–60\""],
         ],
-        col_widths=[1.6, 5.5, 9.7],
+        col_widths=[1.8, 6.0, 9.0],
     )
-    add_bullets(
-        doc,
-        [
-            "1 HLV chính điều hành khởi động + block 19:05 + quay vòng sửa từng trạm.",
-            "Trợ giảng / đai cao đứng cố định 1 trạm trong 40 phút kỹ thuật.",
-            "Thiếu người: gộp A+B và C+D; chuông 10 phút xoay đề bài.",
-            "Dưới 6 tuổi luôn vào trạm A, nội dung cấp 10, không vào danh sách thi.",
-        ],
-    )
-
-    add_h(doc, "5. Block 19:05–19:20 — Thể lực / Nhào lộn / Song đấu", 1)
     add_table(
         doc,
         ["Tầng", "Thể lực", "Nhào lộn", "Song đấu / drill"],
         [
-            ["Cấp 10–9", "Nâng gối, hạ juchum, plank gối, joonbi im", "Cuộn trước có hỗ trợ", "Chân pháp + đá đích 1-1"],
-            ["Cấp 8–7", "Burpee ít, ngồi–đứng, đá đích", "Cuộn trước; cuộn sau có hỗ trợ", "Đá đích theo cặp"],
-            ["Cấp 6–5", "Shadow 30 giây, squat, plank", "Cuộn + đứng dậy 2 giây", "Cấp 5: spar đúng giờ thi"],
-            ["Cấp 4–1", "Shadow đủ giờ hiệp, core", "Nhào trước/sau trên thảm", "Spar 45–60 giây + luật"],
+            ["Cấp 10–9", "Nâng gối, hạ juchum, plank gối", "Cuộn trước có hỗ trợ", "Chân pháp + đá đích"],
+            ["Cấp 8–7", "Burpee ít, ngồi–đứng", "Cuộn trước/sau có hỗ trợ", "Đá đích theo cặp"],
+            ["Cấp 6–5", "Shadow 30\", squat", "Cuộn + đứng dậy nhanh", "Cấp 5: spar có bảo hộ"],
+            ["Cấp 4–1", "Shadow đủ giờ hiệp", "Nhào trước/sau trên thảm", "Spar đúng giờ thi"],
         ],
-        col_widths=[2.4, 5.0, 5.0, 4.4],
+        col_widths=[2.5, 4.5, 5.0, 4.8],
     )
-    add_note(doc, "Nhào lộn luôn có thảm; không ép trẻ sợ; đau cổ/lưng → dừng ngay.")
 
-    add_h(doc, "6. Lịch quý thi & nhánh đai Việt An", 1)
+    add_h(doc, "A4. Lộ trình đai Việt An", 2)
     add_table(
         doc,
         ["Đang đeo", "Thi lên", "Đai khi đậu", "Thời gian", "Tuổi / quý"],
         [
-            ["Cấp 10 (trắng)", "Cấp 9", "Trắng 1 vạch xanh dương", "3 tháng", "≥6 · Quý I"],
+            ["Cấp 10", "Cấp 9", "Trắng 1 vạch", "3 tháng", "≥6 · Quý I"],
             ["Cấp 9", "Cấp 8", "Trắng 2 vạch", "3 tháng", "≥6 · Quý II"],
             ["Cấp 8", "Cấp 7", "Vàng", "3 tháng", "≥6 · Quý III"],
-            ["Cấp 7 vàng", "Cấp 6", "Xanh lá", "3 tháng", "≥6 · Quý IV"],
-            ["Cấp 6 xanh lá", "Cấp 5", "Xanh dương", "3 tháng", "≥7 · Quý I"],
-            ["Cấp 5 xanh dương", "Cấp 4", "Đỏ", "3 tháng", "≥7 · Quý II"],
-            ["Cấp 4 đỏ", "Cấp 3", "Đỏ 1 vạch đen", "3 tháng", "≥7 · Quý III"],
+            ["Cấp 7", "Cấp 6", "Xanh lá", "3 tháng", "≥6 · Quý IV"],
+            ["Cấp 6", "Cấp 5", "Xanh dương", "3 tháng", "≥7 · Quý I"],
+            ["Cấp 5", "Cấp 4", "Đỏ", "3 tháng", "≥7 · Quý II"],
+            ["Cấp 4", "Cấp 3", "Đỏ 1 vạch đen", "3 tháng", "≥7 · Quý III"],
             ["Cấp 3", "Cấp 2", "Đỏ 2 vạch đen", "3 tháng", "≥7 · Quý IV"],
             ["Cấp 2", "Cấp 1", "Đỏ 3 vạch đen", "3 tháng", "≥8 · Quý I"],
         ],
-        col_widths=[3.4, 2.2, 4.2, 2.2, 3.2],
+        col_widths=[2.8, 2.2, 4.0, 2.5, 3.5],
     )
-    add_note(
-        doc,
-        "Kỳ thi tối đa 4 lần/năm: 15/1–31/3; 15/4–30/6; 15/7–30/9; 15/10–31/12. Đăng ký online ≥ 7 ngày. Ap chagi = đá trước (không phải đá ngang).",
-    )
-
-    add_h(doc, "7. Giáo án chi tiết từng cấp", 1)
     add_p(
         doc,
-        "Mỗi cấp mở đầu trang mới. Trong phần lịch tuần: Ngày A = xanh dương, Ngày B = xanh lá, Ngày C = vàng.",
+        "Kỳ thi tối đa 4 lần/năm: 15/1–31/3; 15/4–30/6; 15/7–30/9; 15/10–31/12. Đăng ký online ≥ 7 ngày. Ap chagi = đá trước.",
+        size=10,
+    )
+
+    # ===== PHẦN B =====
+    doc.add_page_break()
+    add_h(doc, "PHẦN B. GIÁO ÁN TỪNG CẤP", 1)
+    add_p(
+        doc,
+        "Mỗi cấp gồm: thông tin – nội dung thi – checklist – phân phối 12 tuần – giáo án chi tiết từng buổi (phần cơ bản).",
         size=10,
         space_after=8,
     )
 
     for b in BELTS:
         doc.add_page_break()
-        add_h(doc, f"{b['holding']}  →  thi {b['next']}", 1)
+        add_h(doc, f"{b['holding']} → thi {b['next']}", 1)
 
+        add_p(doc, "I. Mục tiêu cấp", bold=True, space_after=2)
+        add_bullets(
+            doc,
+            [
+                f"Chuẩn bị thi lên {b['next']} trong tối thiểu 3 tháng.",
+                f"Khi đậu đeo: {b['color']}.",
+                f"Độ tuổi / quý: {b['age']}.",
+            ],
+        )
+
+        add_p(doc, "II. Địa điểm – Phương tiện", bold=True, space_before=8, space_after=2)
+        add_bullets(
+            doc,
+            [
+                "Như giáo án khung (A2).",
+                f"Nhào lộn: {b['tumbling']}",
+                f"Song đấu: {b['sparring']}",
+                f"Thể lực gợi ý: {b['fitness']}",
+            ],
+        )
+
+        add_p(doc, "III. Nội dung thi (thứ tự phiếu)", bold=True, space_before=8, space_after=2)
+        add_bullets(doc, [f"{i}. {x}" for i, x in enumerate(b["exam"], 1)])
+
+        add_p(doc, "IV. Chuẩn kỹ thuật (đúng / hay sai)", bold=True, space_before=8, space_after=4)
+        add_table(doc, ["Đòn", "Yêu cầu đúng", "Lỗi thường gặp"], b["tech"], col_widths=[3.2, 7.0, 6.6])
+
+        add_p(doc, "V. Checklist trước khi nộp danh sách thi", bold=True, space_before=4, space_after=2)
+        add_bullets(doc, [f"☐ {x}" for x in b["check"]])
+
+        add_p(doc, "VI. Phân phối chương trình 12 tuần", bold=True, space_before=8, space_after=4)
+        dist_rows = []
+        for i, week in enumerate(b["weeks"], 1):
+            title, home, day_a, day_b, day_c = week
+            # short title without "Tuần N —"
+            short = title.split("—", 1)[-1].strip() if "—" in title else title
+            dist_rows.append([str(i), short, home])
         add_table(
             doc,
-            ["Mục", "Nội dung"],
-            [
-                ["Đai khi đậu", b["color"]],
-                ["Tuổi / quý", b["age"]],
-                ["Nhào lộn", b["tumbling"]],
-                ["Song đấu", b["sparring"]],
-                ["Thể lực gợi ý", b["fitness"]],
-            ],
-            col_widths=[3.5, 13.3],
-            zebra=False,
+            ["Tuần", "Mục tiêu tuần", "Bài tập về nhà"],
+            dist_rows,
+            col_widths=[1.5, 7.5, 7.8],
         )
-        for row in doc.tables[-1].rows[1:]:
-            shade_cell(row.cells[0], META_FILL)
-            write_cell(row.cells[0], row.cells[0].text, bold=True, size=10)
-            shade_cell(row.cells[0], META_FILL)
 
-        add_h(doc, "Thứ tự phiếu thi", 2)
-        add_bullets(doc, [f"{i}. {item}" for i, item in enumerate(b["exam"], 1)])
-
-        add_h(doc, "Chuẩn đòn — đúng / hay sai", 2)
-        add_table(doc, ["Đòn", "Đúng", "Hay sai"], b["tech"], col_widths=[3.5, 6.8, 6.5])
-
-        add_h(doc, "Checklist trước khi nộp thi", 2)
-        check_rows = [["☐", item] for item in b["check"]]
-        add_table(doc, ["", "Hạng mục phải đạt"], check_rows, col_widths=[1.2, 15.6], zebra=False)
-
-        add_h(doc, "12 tuần × 3 buổi (nhóm 18:25–19:05)", 2)
+        add_p(doc, "VII. Giáo án chi tiết từng tuần (phần cơ bản 18:25–19:05)", bold=True, space_before=8, space_after=4)
         add_p(
             doc,
-            "Trước đó: chào + khởi động chung. Sau đó: block 19:05 và giãn 19:20. Bảng dưới chỉ phần kỹ thuật theo nhóm.",
+            "Phần mở đầu và kết thúc làm theo A2. Dưới đây chỉ viết phần cơ bản theo Ngày A / B / C.",
             size=10,
+            space_after=6,
         )
+
         for week in b["weeks"]:
             title, home, day_a, day_b, day_c = week
             add_h(doc, title, 3)
-            # home row as tinted one-cell table
-            home_table = doc.add_table(rows=1, cols=1)
-            home_table.style = "Table Grid"
-            cell = home_table.rows[0].cells[0]
-            shade_cell(cell, HOME_FILL)
-            clear_cell(cell)
-            p = cell.paragraphs[0]
-            r1 = p.add_run("Ở nhà: ")
-            set_run_font(r1, size=10, bold=True)
-            r2 = p.add_run(home)
-            set_run_font(r2, size=10)
-            set_cell_margins(cell, top=50, bottom=50, left=70, right=70)
-            spacer = doc.add_paragraph()
-            spacer.paragraph_format.space_after = Pt(4)
-            add_week_table(doc, day_a, day_b, day_c)
+            add_p(doc, f"Bài tập về nhà: {home}", size=11, space_after=4)
+            add_day_detail(doc, "Ngày A", day_a)
+            add_day_detail(doc, "Ngày B", day_b)
+            add_day_detail(doc, "Ngày C", day_c)
 
     doc.add_page_break()
-    add_h(doc, "8. Mẫu phiếu tháng", 1)
+    add_h(doc, "PHẦN C. PHỤ LỤC", 1)
+    add_h(doc, "C1. Mẫu phiếu tháng", 2)
     add_table(
         doc,
         ["Hạng mục", "Ghi chú / điểm"],
@@ -1604,28 +1560,26 @@ def build():
             ["Chữ ký HLV", ""],
             ["Phụ huynh đã xem", "☐"],
         ],
-        col_widths=[5.0, 11.8],
-        zebra=False,
+        col_widths=[5.5, 11.3],
     )
 
-    add_h(doc, "9. Việc cần bạn sửa giúp", 1)
+    add_h(doc, "C2. Câu hỏi cần CLB xác nhận thêm", 2)
     add_bullets(
         doc,
         [
-            "Giờ vào lớp cố định có đúng 18:00–19:30 không, hay có ca khác?",
-            "Trợ giảng thường có mấy người/buổi? Có nên gộp trạm khác không?",
-            "Nhào lộn: CLB đang dạy đến mức nào (chỉ cuộn / đã nhào / gần mức đẳng)?",
-            "Song đấu trẻ 6–8 tuổi: tiếp xúc nhẹ đến đâu (chỉ giáp thân / có mũ)?",
-            "Phiếu tháng đang dùng mẫu sẵn chưa — nếu có, gửi để thay mục 8.",
-            "Tên gọi đòn trên sàn Việt An (apcha / tôlô…) nếu khác file.",
+            "Giờ vào lớp có đúng 18:00–19:30 không?",
+            "Mỗi buổi thường có mấy trợ giảng?",
+            "Nhào lộn đang dạy đến mức nào?",
+            "Spar trẻ 6–8 tuổi: mức tiếp xúc / có mũ không?",
+            "Đã có mẫu phiếu tháng riêng chưa?",
+            "Thuật ngữ hô trên sàn (apcha, tôlô…) có khác file không?",
         ],
     )
     add_p(
         doc,
-        "Nguồn nội dung thi: QĐ 152/2025/QĐ-VTF. Cách chia phút/tuần là giáo án vận hành Việt An. Video quyền: YouTube Kukkiwon (Taegeuk 1–8).",
+        "Nguồn nội dung thi: QĐ 152/2025/QĐ-VTF. Khung phút/tuần là giáo án vận hành Việt An.",
         size=9,
-        color=RGBColor(0x66, 0x66, 0x66),
-        space_before=8,
+        space_before=10,
     )
 
     doc.save(OUT)
